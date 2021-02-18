@@ -1,0 +1,10 @@
+Package: veeamhubrepo
+Version: 0.2.4
+Section: custom
+Priority: optional
+Architecture: all
+Essential: no
+Installed-Size: 1024
+Maintainer: github.com/veeamhub
+Depends: python3-dialog, python3-pystemd, openssh-server, python3-psutil, nano
+Description: simple managers for immutable repositories
