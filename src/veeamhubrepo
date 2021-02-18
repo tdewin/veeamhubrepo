@@ -811,7 +811,7 @@ class AlternateDialog(DialogWrapper):
             for c in choices:
                 print("{}) {}".format(c[0],c[1]))
             self.lnspacer()
-            userinput = input("Please specify choice or 'e' to exit:")
+            userinput = input("Please specify choice or <<e>> to exit:")
 
         code = self.OK
         if userinput == "e":
