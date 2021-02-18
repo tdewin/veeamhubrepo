@@ -19,8 +19,8 @@ How it works:
 - A wizard will start that should detect the second disk/block device via lsblk and ask you to format it (experimental project be careful)
 - Additionally it will create a new unpriveleged user, disable SSH, configure the firewall, ..
 - Add the end of the wizard it will ask you to enable SSH. Before you start this process, make sure that you are ready to add the repository to a Veeam V11 installation
-- Enable SSH, the wizard will show you the configured ip, user as reminder. Go to V11 and register the repo with "Single use credentials" and "elevate automatically" checked
-- Once you click through, the GUI should detect that the repository is added and auto close SSH
+- Enable SSH, the wizard will show you the configured IP, user, etc. as a reminder. Go to V11 and register the repo with "Single use credentials" and "elevate automatically" checked
+- Once you click through, the GUI should detect that the repository is added, auto close SSH and remove sudo power to the veeamrepo user. 
 
 Next time you open the VeeamHub repo manager, it will allow you to modify settings, read logs or monitor space usage
 
