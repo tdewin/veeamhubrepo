@@ -997,7 +997,7 @@ def home(style="default"):
         code, tag = d.menu("\n".join(ln),
                        choices=[("1", "Set/Create Unprivileged Repo User"),
                                 ("2", "Format Drive XFS"),
-                                ("3", "Register Hardended Repo"),
+                                ("3", "Register Hardened Repo"),
                                 ("4", "Monitor Repositories"),
                                 ("5", "Manages Repo Paths"),
                                 ("6", "Manage Ubuntu"),
