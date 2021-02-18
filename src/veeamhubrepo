@@ -790,7 +790,7 @@ class AlternateDialog(DialogWrapper):
         code = self.OK
         answer = ""
         try:
-            answer = input("(default {}, ctrl+c to exit): ".format(init))
+            answer = input("(default <<{}>>, ctrl+c to exit): ".format(init))
             if answer == "":
                 answer = init
         except KeyboardInterrupt:
