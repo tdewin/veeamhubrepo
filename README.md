@@ -13,6 +13,11 @@ sudo apt-get install ./veeamhubrepo.deb
 sudo veeamhubrepo
 ```
 
+If you did a clean install, you install the packages and it complains about depencies, please run an apt-get update
+```
+sudo apt-get update
+```
+
 Alternatively you can just download the python script but the advantage with the package is that it will put everything in the correct location and it will download all dependecies.
 
 # FAQ
