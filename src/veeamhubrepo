@@ -626,9 +626,9 @@ def ntp(config,d):
                 if "FallbackNTP" in config['Time']:
                     failoverntp = config['Time']['FallbackNTP']
        
-        y,newntpset = d.inputbox("NTP server\n(space seperated)",init=ntpset)
+        y,newntpset = d.inputbox("NTP server\n(space separated)",init=ntpset)
         if y == d.OK:
-            y,newfailover = d.inputbox("Failover NTP server\n(space seperated)",init=failoverntp)
+            y,newfailover = d.inputbox("Failover NTP server\n(space separated)",init=failoverntp)
             if y == d.OK:
                 if newntpset != ntpset or newfailover != failoverntp:
                     shutil.copyfile(cfile, "{}.{}.backup".format(cfile,datetime.datetime.now().strftime("%Y%m%d%H%M%S")))
@@ -772,7 +772,7 @@ class AlternateDialog(DialogWrapper):
             self.cls()
             print(question)
             self.lnspacer()
-            test = input("Press enter for {}, enter 'e' for {} : ".format(yes_label,no_label))
+            test = input("Press <<enter>> for {}, enter <<e>> for {} : ".format(yes_label,no_label))
         if test == "e":
             code = self.Cancel
         return code
