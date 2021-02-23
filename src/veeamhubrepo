@@ -234,14 +234,15 @@ def formatdrive(config,d):
                     shadow[i] = "/dev/{0}".format(partsplit[3])
                     i=i+1
      
-    code, tag = d.menu("Which partition do you want to format",choices=choices)
+    code, tag = d.menu("Select partition to format", choices=choices)
     if code == d.OK:
-        code,part = d.inputbox("Confirm your partition",init=shadow[int(tag)])
+        code,part = d.inputbox("Confirm selected partition", init=shadow[int(tag)])
         if code == d.OK:
-            code = d.yesno("Are you sure you want to format {}".format(part))
+            code = d.yesno(f"Are you sure you want to format {part}?")
             if code == d.OK:
                 #trying to suggest to make a primary partition on a complete disk
                 if re.match("/dev/.d[a-z]{1,2}$", part):
+                    code = d.yesno(f"{part} contains no partitions. Do you want to partition it?")
                     if code == d.OK:
                         if shutil.which("parted") is not None:
                             pout = subprocess.run(["parted","-s",part,"mklabel","gpt"], capture_output=True)
@@ -258,6 +259,8 @@ def formatdrive(config,d):
                         else:
                             d.msgbox("Parted not found, stopping")
                             return 1,repoadded
+ 
+                d.msgbox(f"Now formating {part} with XFS")
  
                 time.sleep(1)
                 pout = subprocess.run(["mkfs.xfs","-b","size=4096","-m","reflink=1,crc=1",part], capture_output=True)
