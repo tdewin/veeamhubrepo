@@ -245,18 +245,20 @@ def formatdrive(config,d):
                     code = d.yesno(f"{part} contains no partitions. Do you want to partition it?")
                     if code == d.OK:
                         if shutil.which("parted") is not None:
-                            pout = subprocess.run(["parted","-s",part,"mklabel","gpt"], capture_output=True)
-                            if pout.returncode != 0:
-                                d.msgbox("Error {0}".format(str(pout.stderr,'utf-8')))
-                                return 1,repoadded
+                            try:
+                                pout = subprocess.run([
+                                    "parted","-s",part,
+                                    "mklabel","gpt",
+                                    "mkpart", "primary", "0%", "100%"
+                                    ], capture_output=True)
+                                part = f"{part}1"
+                            except subprocess.CalledProcessError as e:
+                                d.msgbox(
+                                    f"Error partitioning {part}, code {e.returncode}:"
+                                    f"{e.stderr}".encode("utf-8")
+                                )
+                                return 1, repoadded
                             else:
-                                pout = subprocess.run(["parted","-s",part,"mkpart","primary","0%","100%"], capture_output=True)
-                                if pout.returncode != 0:
-                                    d.msgbox("Error {0}".format(str(pout.stderr,'utf-8')))
-                                    return 1,repoadded
-                                else:
-                                    part = "{}1".format(part)
-                        else:
                             d.msgbox("Parted not found, stopping")
                             return 1,repoadded
  
