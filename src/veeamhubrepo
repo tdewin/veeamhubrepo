@@ -241,8 +241,7 @@ def formatdrive(config,d):
             code = d.yesno("Are you sure you want to format {}".format(part))
             if code == d.OK:
                 #trying to suggest to make a primary partition on a complete disk
-                if re.match("/dev/.d[a-z]$",part):
-                    code = d.yesno("{} is a complete disk, do you want me to partition it?".format(part))
+                if re.match("/dev/.d[a-z]{1,2}$", part):
                     if code == d.OK:
                         if shutil.which("parted") is not None:
                             pout = subprocess.run(["parted","-s",part,"mklabel","gpt"], capture_output=True)
