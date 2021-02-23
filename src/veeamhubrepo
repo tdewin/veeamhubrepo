@@ -258,10 +258,10 @@ def formatdrive(config,d):
                                     f"{e.stderr}".encode("utf-8")
                                 )
                                 return 1, repoadded
-                            else:
+                        else:
                             d.msgbox("Parted not found, stopping")
                             return 1,repoadded
- 
+
                 d.msgbox(f"Now formating {part} with XFS")
  
                 time.sleep(1)
@@ -275,26 +275,36 @@ def formatdrive(config,d):
                 if pout.returncode != 0:
                    d.msgbox("Error formatting {0}".format(str(pout.stderr,'utf-8')))
                 else:
-                    reposug = "/backups/repo{:03d}"
-                    repo = "/backups/repo255"
+                    choices = [
+                                ("1", "One digit (repo1)"),
+                                ("2", "Two digits (repo01)"),
+                                ("3", "Three digits (repo001)"),
+                              ]
+                    code, tag = d.menu("Select leading zeros in disk name", choices=choices)
+                    
+                    mountpoint = ""
+                    
                     found = False
                     i = 1
-                    while not found and i < 255:
-                        trepo = Path(reposug.format(i))
-                        if trepo.is_file() or trepo.is_dir():
+                    high = (10**int(tag))-1
+                    zeros = len(str(high))
+
+                    while not found and i < high:
+                        test_path = Path("/backups/disk-{}".format(str(i).zfill(zeros)))
+                        if test_path.exists():
                             i = i+1
                         else:
-                            repo = trepo
+                            mountpoint = test_path
                             found = True
-                    code,mountpoint = d.inputbox("Where do you want to mount the repo",init=str(repo))
+                    
+                    code, mountpoint = d.inputbox("Where do you want to mount the disk?",init=str(mountpoint))
                     if code == d.OK:
                         p = Path(mountpoint)
                         if p.exists():
                             d.msgbox("Path exists, stopping")
-                            return 1,repoadded
+                            return 1, repoadded
                         else:
                             p.mkdir(mode=0o770, parents=True, exist_ok=False)
-
 
                             uuid = ""
                             for dbid in Path("/dev/disk/by-uuid/").iterdir():
