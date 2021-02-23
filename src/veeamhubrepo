@@ -20,10 +20,7 @@ import sys
 import time
 import configparser
 import datetime
-import readline
 import getpass
-
-#readline for reading arrow keys
 
 # Start menu in home() function at the bottom
 # util functions, functions that might be used by different part of the code
