@@ -68,7 +68,7 @@ def getsshservice():
     ssh.load()
     return ssh
 
-def issshon():
+def is_ssh_on():
     s = getsshservice()
     return s.Unit.ActiveState == b'active'
 
@@ -987,7 +987,7 @@ def home(style="default"):
         updated = False
     
         ln = ["Current IPv4: {}".format(",".join(myips()))]
-        if issshon():
+        if is_ssh_on():
             ln.append("! SSH is running !")
 
         ln.append("")
