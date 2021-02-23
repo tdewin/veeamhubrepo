@@ -13,7 +13,6 @@ import re
 import subprocess
 import shutil
 import netifaces
-import requests
 import pystemd
 import psutil
 import os
