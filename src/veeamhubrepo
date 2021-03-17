@@ -29,10 +29,15 @@ import getpass
 def myips():
     ipaddr = []
     for nif in netifaces.interfaces():
-            if nif != 'lo':
-                        for nifaddr in netifaces.ifaddresses(nif)[netifaces.AF_INET]:
-                                        ipaddr.append(nifaddr['addr'])
+        ifaddr = netifaces.ifaddresses(nif)
+        if netifaces.AF_INET in ifaddr:
+            addrdetails = ifaddr[netifaces.AF_INET]
+            for addr in addrdetails:
+                ip = addr['addr']
+                if ip != '127.0.0.1':
+                    ipaddr.append(ip)
     return ipaddr
+
 
 def veeamrunning():
     procs = [p for p in psutil.process_iter(['pid', 'name', 'username']) if "veeamtransport" in p.name()]
