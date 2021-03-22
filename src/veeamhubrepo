@@ -106,6 +106,13 @@ def packagetest(dpkgtest):
 				code = 1
 	return code
 
+def removepackage(d,packagename):
+    pout = subprocess.run(["apt-get","remove",packagename,"-y"], capture_output=True) 
+    if pout.returncode != 0:
+        d.msgbox("Error removing {0}".format(str(pout.stderr,'utf-8')))
+        error = True
+
+
 def installpackage(d,packagename):
     error = False
 
@@ -617,7 +624,25 @@ def settime(config,d,time,date,zone,ntpactive):
                     if pout.returncode != 0:
                         d.msgbox(str(pout.stderr,'utf-8'))
 
-# 6.3.3 ntp
+# 6.3.3 disable ntp
+def disablentp(config,d):
+    if packagetest("systemd-timesyncd") != 1:
+        d.msgbox("NTP is not installed (timesyncd), doing nothing")
+    else:
+        tsd = pystemd.systemd1.Unit(b'systemd-timesyncd.service')
+        tsd.load()
+        if tsd.Unit.ActiveState == b'active':
+            tsd.Unit.Stop(b'replace')
+
+        mgr = pystemd.systemd1.Manager()
+        mgr.load()
+        if len([serv for serv in mgr.Manager.ListUnitFiles() if "timesyncd" in str(serv[0]) ]) > 0:
+            mgr.Manager.DisableUnitFiles([b'systemd-timesyncd.service'],False)
+            
+
+        d.msgbox("Unloaded and disabled timesyncd")
+
+# 6.3.4 ntp
 def ntp(config,d):
         if packagetest("systemd-timesyncd") != 1:
             c = d.yesno("Systemd-timesyncd does not seem to be install it\nDo you want to install it?")
@@ -660,6 +685,10 @@ def ntp(config,d):
                 tsd.load()
                 tsd.Unit.Stop(b'replace')
                 tsd.Unit.Start(b'replace')
+                
+                mgr = pystemd.systemd1.Manager()
+                mgr.load()
+                mgr.Manager.EnableUnitFiles([b'systemd-timesyncd.service'],False,True)
                     
 # 6.3 main menu
 
@@ -672,7 +701,8 @@ def managetime(config,d):
             code, tag = d.menu("\n".join(ln),
                        choices=[("1", "Configure Timezone"),
                                 ("2", "Manually Set Time"),
-                                ("3", "Configure NTP (timesyncd)")
+                                ("3", "Disable NTP (timesyncd)"),
+                                ("4", "Configure NTP (timesyncd)")
                                 ],height=len(ln)+9)
             if code == d.OK:
                 if tag == "1":
@@ -680,6 +710,8 @@ def managetime(config,d):
                 elif tag == "2":
                     settime(config,d,time,date,zone,ntpactive)
                 elif tag == "3":
+                    disablentp(config,d)
+                elif tag == "4":
                     ntp(config,d)
 
 
@@ -929,7 +961,7 @@ def home(style="default"):
 
     rows,columns = screensize()
 
-    if rows < 40 or columns < 90:
+    if (rows < 40 or columns < 90) and style == "default":
         print("Switching to alternate dialog style because small terminal (r{},c{}), need at least 40 rows and 90 columns".format(rows,columns))
         print("To avoid this message, resize the terminal or run with -alt flag")
         print("In VMware the console screen might be to small, you can adapt it with vga=791 in grub")
