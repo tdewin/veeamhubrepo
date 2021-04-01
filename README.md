@@ -6,7 +6,7 @@ Check the release page to get debian package
 
 Easy install by using wget to download the package and sudo apt-get install ./veeamhubrepo.deb to install it e.g
 ```
-sudo wget -O ./veeamhubrepo.deb https://github.com/tdewin/veeamhubrepo/releases/download/v0.3.1/veeamhubrepo_noarch.deb
+sudo wget -O ./veeamhubrepo.deb https://github.com/tdewin/veeamhubrepo/releases/download/v0.3.2/veeamhubrepo_noarch.deb
 sudo apt-get install ./veeamhubrepo.deb
 sudo veeamhubrepo
 ```
