@@ -15,10 +15,10 @@ jobs:
     - uses: actions/checkout@v2
 
     - name: Copy file
-      run: "cp src/veeamhubrepo  dist/veeamhubrepo/usr/bin"
+      run: "cp src/veeamhubrepo  package/veeamhubrepo/usr/bin"
 
     - name: Build Packages
-      run: "dpkg-deb --build dist/veeamhubrepo"
+      run: "mkdir -p dist && cd package && dpkg-deb --build dist/veeamhubrepo && cd .."
 
     - name: Rename
       run: "mv dist/veeamhubrepot.deb dist/veeamhubrepo_noarch_${{github.event.inputs.version}}.deb"
