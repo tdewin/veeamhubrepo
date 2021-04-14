@@ -13,7 +13,7 @@ jobs:
     - uses: actions/checkout@v2
 
     - name: Get version
-      run: "cp src/veeamhubrepo | grep -e  "# VEEAMHUBREPOVERSION:" | sed 's/# VEEAMHUBREPOVERSION: //;s/\s*//g' > /tmp/v"
+      run: "cat src/veeamhubrepo | grep -e  '# VEEAMHUBREPOVERSION:' | sed 's/# VEEAMHUBREPOVERSION: //;s/\\s*//g' > /tmp/v"
       
     - name: Copy file
       run: "cp src/veeamhubrepo  package/veeamhubrepo/usr/bin"
