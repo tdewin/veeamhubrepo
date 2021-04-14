@@ -21,7 +21,7 @@ jobs:
       run: "dpkg-deb --build package/veeamhubrepo && find ."
 
     - name: Rename
-      run: "mkdir dist && mv package/veeamhubrepot.deb dist/veeamhubrepo_noarch_${{github.event.inputs.version}}.deb"
+      run: "mkdir dist && mv package/veeamhubrepo.deb dist/veeamhubrepo_noarch_${{github.event.inputs.version}}.deb"
       
     - name: Upload a deb
       uses: actions/upload-artifact@v2.2.3
