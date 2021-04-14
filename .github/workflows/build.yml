@@ -26,4 +26,5 @@ jobs:
     - name: Upload a deb
       uses: actions/upload-artifact@v2.2.3
       with:
+        name: "veeamhubrepo_noarch_${{github.event.inputs.version}}"
         path: "dist/veeamhubrepo_noarch_${{github.event.inputs.version}}.deb"
