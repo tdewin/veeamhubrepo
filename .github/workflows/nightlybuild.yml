@@ -37,5 +37,5 @@ jobs:
     - name: Upload a deb
       uses: actions/upload-artifact@v2.2.3
       with:
-        name: "veeamhubrepo_noarch_$(cat /tmp/v)_nightly_$(date +%Y_%d_%m)"
-        path: "dist/veeamhubrepo_noarch_$(cat /tmp/v).deb"
+        name: "veeamhubrepo_noarch_nightly"
+        path: "dist/*.deb"
