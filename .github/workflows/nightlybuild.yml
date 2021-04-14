@@ -1,0 +1,36 @@
+name: "Nightly Build"
+
+on:
+  schedule:
+  - cron: "0 02 * * *"
+
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Get version
+      run: "cp src/veeamhubrepo | grep -e  "# VEEAMHUBREPOVERSION:" | sed 's/# VEEAMHUBREPOVERSION: //;s/\s*//g' > /tmp/v"
+      
+    - name: Copy file
+      run: "cp src/veeamhubrepo  package/veeamhubrepo/usr/bin"
+      
+    - name: Make Notation
+      run: 'mkdir -p package/veeamhubrepo/usr/share/veeamhubrepo/ && echo "Nightly $(date +%Y-%d-%m)" > package/veeamhubrepo/usr/share/veeamhubrepo/nightly.txt'
+    
+    - name: Set version in package
+      run: 'sed -i "s/Version: .*/Version: $(cat /tmp/v)/" package/veeamhubrepo/DEBIAN/control'
+
+    - name: Build Packages
+      run: "dpkg-deb --build package/veeamhubrepo && find ."
+
+    - name: Rename
+      run: "mkdir dist && mv package/veeamhubrepo.deb dist/veeamhubrepo_noarch_${{env.VERSION}}.deb"
+      
+    - name: Upload a deb
+      uses: actions/upload-artifact@v2.2.3
+      with:
+        name: "veeamhubrepo_noarch_$(cat /tmp/v)_nightly_$(date +%Y_%d_%m)"
+        path: "dist/veeamhubrepo_noarch_$(cat /tmp/v).deb"
