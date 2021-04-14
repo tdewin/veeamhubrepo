@@ -13,7 +13,7 @@ jobs:
     - uses: actions/checkout@v2
 
     - name: Get version
-      run: "cat src/veeamhubrepo | grep -e  '# VEEAMHUBREPOVERSION:' | sed 's/# VEEAMHUBREPOVERSION: //;s/\\s*//g' > /tmp/v"
+      run: "cat src/veeamhubrepo | grep -e  '# VEEAMHUBREPOVERSION:' | sed 's/# VEEAMHUBREPOVERSION: //;s/\\s*//g' > /tmp/v && echo \"VEEAMHUBREPOVERSION=$(cat /tmp/v)\" >> $GITHUB_ENV"
       
     - name: Copy file
       run: "cp src/veeamhubrepo  package/veeamhubrepo/usr/bin"
@@ -37,5 +37,5 @@ jobs:
     - name: Upload a deb
       uses: actions/upload-artifact@v2.2.3
       with:
-        name: "veeamhubrepo_noarch_nightly"
+        name: "veeamhubrepo_noarch_${{env.VEEAMHUBREPOVERSION}}_nightly"
         path: "dist/*.deb"
