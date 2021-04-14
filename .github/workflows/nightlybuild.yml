@@ -31,6 +31,8 @@ jobs:
 
     - name: Rename
       run: "mkdir dist && mv package/veeamhubrepo.deb dist/veeamhubrepo_noarch_$(cat /tmp/v).deb"
+    - name: Show Output
+      run: find dist/ && find package/
       
     - name: Upload a deb
       uses: actions/upload-artifact@v2.2.3
