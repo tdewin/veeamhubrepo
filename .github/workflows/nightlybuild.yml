@@ -24,7 +24,7 @@ jobs:
     - name: Set version in package
       run: 'sed -i "s/Version: .*/Version: $(cat /tmp/v)/" package/veeamhubrepo/DEBIAN/control'
     - name: Cleanup gitkeep
-      run: 'find . -iname ".gitkeep"  -exec rm {} \\;'
+      run: 'find . -iname ".gitkeep"  -exec rm {} \;'
       
     - name: Build Packages
       run: "dpkg-deb --build package/veeamhubrepo"
