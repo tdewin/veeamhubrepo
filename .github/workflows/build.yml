@@ -2,10 +2,6 @@ name: Build Package
 
 on:
   workflow_dispatch:
-    inputs:
-      version:
-        description: 'Version Number'
-        default: '0.3.'
 
 
 jobs:
@@ -14,20 +10,30 @@ jobs:
     steps:
     - uses: actions/checkout@v2
 
+    - name: Get version
+      run: "echo \"VEEAMHUBREPOVERSION=$(cat src/veeamhubrepo | grep -e  '# VEEAMHUBREPOVERSION:' | sed 's/# VEEAMHUBREPOVERSION: //;s/\\s*//g')\" >> $GITHUB_ENV"
+      
     - name: Copy file
       run: "cp src/veeamhubrepo  package/veeamhubrepo/usr/bin"
       
+    - name: Mark version
+      run: 'mkdir -p package/veeamhubrepo/usr/share/veeamhubrepo/ && echo "${{env.VEEAMHUBREPOVERSION}} GA" > package/veeamhubrepo/usr/share/veeamhubrepo/release.txt'
+    
     - name: Set version in package
-      run: 'sed -i "s/Version: .*/Version: ${{github.event.inputs.version}}/" package/veeamhubrepo/DEBIAN/control'
-
+      run: 'sed -i "s/Version: .*/Version: ${{env.VEEAMHUBREPOVERSION}}/" package/veeamhubrepo/DEBIAN/control'
+    - name: Cleanup gitkeep
+      run: 'find . -iname ".gitkeep"  -exec rm {} \;'
+      
     - name: Build Packages
-      run: "dpkg-deb --build package/veeamhubrepo && find ."
+      run: "dpkg-deb --build package/veeamhubrepo"
 
     - name: Rename
-      run: "mkdir dist && mv package/veeamhubrepo.deb dist/veeamhubrepo_noarch_${{github.event.inputs.version}}.deb"
+      run: "mkdir dist && mv package/veeamhubrepo.deb dist/veeamhubrepo_noarch_${{env.VEEAMHUBREPOVERSION}}.deb"
+    - name: Show Output
+      run: find dist/ && find package/
       
     - name: Upload a deb
       uses: actions/upload-artifact@v2.2.3
       with:
-        name: "veeamhubrepo_noarch_${{github.event.inputs.version}}"
-        path: "dist/veeamhubrepo_noarch_${{github.event.inputs.version}}.deb"
+        name: "veeamhubrepo_noarch_${{env.VEEAMHUBREPOVERSION}}"
+        path: "dist/*.deb"
