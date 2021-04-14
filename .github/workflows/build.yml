@@ -18,7 +18,7 @@ jobs:
       run: "cp src/veeamhubrepo  package/veeamhubrepo/usr/bin"
 
     - name: Build Packages
-      run: "dpkg-deb --build package/veeamhubrepo"
+      run: "dpkg-deb --build package/veeamhubrepo && find ."
 
     - name: Rename
       run: "mkdir dist && mv package/veeamhubrepot.deb dist/veeamhubrepo_noarch_${{github.event.inputs.version}}.deb"
