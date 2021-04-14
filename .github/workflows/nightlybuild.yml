@@ -23,12 +23,14 @@ jobs:
     
     - name: Set version in package
       run: 'sed -i "s/Version: .*/Version: $(cat /tmp/v)/" package/veeamhubrepo/DEBIAN/control'
-
+    - name: Cleanup gitkeep
+      run: 'find . -iname ".gitkeep"  -exec rm {} \\;'
+      
     - name: Build Packages
-      run: "dpkg-deb --build package/veeamhubrepo && find ."
+      run: "dpkg-deb --build package/veeamhubrepo"
 
     - name: Rename
-      run: "mkdir dist && mv package/veeamhubrepo.deb dist/veeamhubrepo_noarch_${{env.VERSION}}.deb"
+      run: "mkdir dist && mv package/veeamhubrepo.deb dist/veeamhubrepo_noarch_$(cat /tmp/v).deb"
       
     - name: Upload a deb
       uses: actions/upload-artifact@v2.2.3
