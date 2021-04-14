@@ -13,16 +13,16 @@ jobs:
     - uses: actions/checkout@v2
 
     - name: Get version
-      run: "cat src/veeamhubrepo | grep -e  '# VEEAMHUBREPOVERSION:' | sed 's/# VEEAMHUBREPOVERSION: //;s/\\s*//g' > /tmp/v && echo \"VEEAMHUBREPOVERSION=$(cat /tmp/v)\" >> $GITHUB_ENV"
+      run: "echo \"VEEAMHUBREPOVERSION=$(cat src/veeamhubrepo | grep -e  '# VEEAMHUBREPOVERSION:' | sed 's/# VEEAMHUBREPOVERSION: //;s/\\s*//g')\" >> $GITHUB_ENV"
       
     - name: Copy file
       run: "cp src/veeamhubrepo  package/veeamhubrepo/usr/bin"
       
-    - name: Make Notation
-      run: 'mkdir -p package/veeamhubrepo/usr/share/veeamhubrepo/ && echo "Nightly $(date +%Y-%d-%m)" > package/veeamhubrepo/usr/share/veeamhubrepo/nightly.txt'
+    - name: Mark version
+      run: 'mkdir -p package/veeamhubrepo/usr/share/veeamhubrepo/ && echo "${{env.VEEAMHUBREPOVERSION}} nightly $(date +%Y-%d-%m)" > package/veeamhubrepo/usr/share/veeamhubrepo/release.txt'
     
     - name: Set version in package
-      run: 'sed -i "s/Version: .*/Version: $(cat /tmp/v)/" package/veeamhubrepo/DEBIAN/control'
+      run: 'sed -i "s/Version: .*/Version: ${{env.VEEAMHUBREPOVERSION}}/" package/veeamhubrepo/DEBIAN/control'
     - name: Cleanup gitkeep
       run: 'find . -iname ".gitkeep"  -exec rm {} \;'
       
@@ -30,7 +30,7 @@ jobs:
       run: "dpkg-deb --build package/veeamhubrepo"
 
     - name: Rename
-      run: "mkdir dist && mv package/veeamhubrepo.deb dist/veeamhubrepo_noarch_$(cat /tmp/v).deb"
+      run: "mkdir dist && mv package/veeamhubrepo.deb dist/veeamhubrepo_noarch_${{env.VEEAMHUBREPOVERSION}}.deb"
     - name: Show Output
       run: find dist/ && find package/
       
