@@ -16,6 +16,9 @@ jobs:
 
     - name: Copy file
       run: "cp src/veeamhubrepo  package/veeamhubrepo/usr/bin"
+      
+    - name: Set version in package
+      run: 'sed -i "s/Version: .*/Version: ${{github.event.inputs.version}}/" package/veeamhubrepo/DEBIAN/control'
 
     - name: Build Packages
       run: "dpkg-deb --build package/veeamhubrepo && find ."
