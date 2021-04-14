@@ -1,0 +1,29 @@
+name: Build Package
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version Number'
+        default: '0.3.'
+
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Copy file
+      run: "cp src/veeamhubrepo  dist/veeamhubrepo/usr/bin"
+
+    - name: Build Packages
+      run: "dpkg-deb --build dist/veeamhubrepo"
+
+    - name: Rename
+      run: "mv dist/veeamhubrepot.deb dist/veeamhubrepo_noarch_${{github.event.inputs.version}}.deb"
+      
+    - name: Upload a deb
+      uses: actions/upload-artifact@v2.2.3
+      with:
+        path: "dist/veeamhubrepo_noarch_${{github.event.inputs.version}}.deb"
