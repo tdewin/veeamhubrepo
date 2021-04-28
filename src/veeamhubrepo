@@ -19,11 +19,13 @@ import netifaces
 import pystemd
 import psutil
 import os
+import glob
 import sys
 import time
 import configparser
 import datetime
 import getpass
+import yaml
 
 # Start menu in home() function at the bottom
 # util functions, functions that might be used by different part of the code
@@ -717,6 +719,119 @@ def managetime(config,d):
                 elif tag == "4":
                     ntp(config,d)
 
+def netfileselector(config,d):
+    basedir = "/etc/netplan"
+    files = glob.glob(basedir+"/*.yaml")
+    lenf = len(files)
+    if lenf == 0:
+        d.msgbox("Error could not located yaml file")
+        return ""
+    elif lenf > 1:
+        code = d.OK
+        path = basedir
+        while code == d.OK and not Path(path).is_file():
+            code, path = d.fselect(path,width=80,height=30)
+        if code != d.OK:
+            return ""
+        else:
+            return path
+    else:
+        return files[0]
+
+
+# 6.4.1
+def managestaticip(config,d):
+    file = netfileselector(config,d)
+    if file != "":
+        newyaml = ""
+        with open(file,'r') as yamlfile:
+            loadedyaml = yaml.load(yamlfile,Loader=yaml.SafeLoader)
+            choices = []
+            ch = 1
+            shadow = {}
+
+            for net in loadedyaml.get("network").get("ethernets").items():
+                choices.append((str(ch),net[0]))
+                shadow[str(ch)] = net[0]
+                ch = ch+1
+            
+            
+            code, tag = d.menu("Which network card do you want to edit",choices=choices,height=len(choices)+4)
+            if code == d.OK:
+                netifsh = shadow[tag]
+
+                netifyaml = loadedyaml.get("network").get("ethernets").get(netifsh)
+
+                default = "0.0.0.0/24"
+                addrs = netifyaml.get('addresses')
+                if len(addrs) > 0:
+                    default = ",".join(addrs)
+                code,ipv4 = d.inputbox("IPv4/subnet e.g "+default,default)
+                if code != d.OK:
+                    return
+
+                default = "0.0.0.0"
+                gw = netifyaml.get('gateway4')
+                if gw:
+                    default = gw 
+                gateway = d.inputbox("Gateway "+default,init=default)
+                if code != d.OK:
+                    return
+                
+                defaultdns = "8.8.8.8,8.8.4.4"
+                defaultsearch = ""
+
+                ns = netifyaml.get('nameservers')
+                if ns:
+                    dns = ns.get('addresses')
+                    if dns:
+                        defaultdns = ",".join(dns)
+
+                    search = ns.get('search')
+                    if search:
+                        defaultsearch = ",".join(search)
+
+                code,dns = d.inputbox("DNS servers seperated with ,",init=defaultdns)
+                if code != d.OK:
+                    return
+
+                code,dnssearch = d.inputbox("DNS search seperated with ,",init=defaultsearch)
+                if code == d.OK:
+                    code = d.yesno("\n".join(["Confirm settings","","IPv4: "+ipv4,"Gateway: "+gw,"DNS: "+dns,"DNSSearch: "+dnssearch]))
+                    if code == d.OK:
+                        loadedyaml.get('network').get('ethernets')[netifsh] = {'addresses': ipv4.split(","), 'gateway4': gw, 'nameservers': {'addresses': dns.split(","), 'search': dnssearch.split(",")}}
+                        newyaml = yaml.dump(loadedyaml)
+        if newyaml != "":
+            os.rename(file,file+".backup")
+            with open(file,'w') as yamlfile:
+                yamlfile.write(newyaml)
+
+            pout = subprocess.run(["netplan","apply"], capture_output=True) 
+            if pout.returncode != 0:
+                d.msgbox("Error  {0}".format(str(pout.stderr,'utf-8')))
+            
+# 6.4 manage network
+def managenetwork(config,d):
+    code = d.OK
+    while code == d.OK:
+        ln = []
+        ln.append("What do you want to do")
+        code, tag = d.menu("\n".join(ln),
+                       choices=[("1", "Setup STATIC IP"),
+                                ("2", "Setup DHCP"),
+                                ("3", "Create a Bound"),
+                                ("4", "Manually change netplan"),
+                                ],height=len(ln)+7)
+        if code == d.OK:
+            if tag == "1":
+                managestaticip(config,d)
+            elif tag == "2":
+                d.msgbox("not implemented")
+            elif tag == "3":
+                d.msgbox("not implemented")
+            elif tag == "4":
+                d.msgbox("not implemented")
+                
 
 def manageubuntu(config,d):
         code = d.OK
@@ -725,6 +840,7 @@ def manageubuntu(config,d):
                        choices=[("1", "Update"),
                                 ("2", "Harden"),
                                 ("3", "Manage Time"),
+                                ("4", "Manage Network"),
                                 ])
             if code == d.OK:
                 if tag == "1":
@@ -733,6 +849,8 @@ def manageubuntu(config,d):
                     harden(config,d)
                 elif tag == "3":
                     managetime(config,d)
+                elif tag == "4":
+                    managenetwork(config,d)
 
  
 # main loop
