@@ -764,7 +764,7 @@ def managestaticip(config,d):
 
                 default = "0.0.0.0/24"
                 addrs = netifyaml.get('addresses')
-                if len(addrs) > 0:
+                if addrs:
                     default = ",".join(addrs)
                 code,ipv4 = d.inputbox("IPv4/subnet e.g "+default,default)
                 if code != d.OK:
@@ -774,7 +774,7 @@ def managestaticip(config,d):
                 gw = netifyaml.get('gateway4')
                 if gw:
                     default = gw 
-                gateway = d.inputbox("Gateway "+default,init=default)
+                code,gateway = d.inputbox("Gateway "+default,init=default)
                 if code != d.OK:
                     return
                 
@@ -796,10 +796,16 @@ def managestaticip(config,d):
                     return
 
                 code,dnssearch = d.inputbox("DNS search seperated with ,",init=defaultsearch)
+
                 if code == d.OK:
-                    code = d.yesno("\n".join(["Confirm settings","","IPv4: "+ipv4,"Gateway: "+gw,"DNS: "+dns,"DNSSearch: "+dnssearch]))
+                    #d.msgbox(ipv4)
+                    #d.msgbox(gateway)
+                    #d.msgbox(dns)
+                    #d.msgbox(dnssearch)
+
+                    code = d.yesno("\n".join(["Confirm settings","","IPv4: "+ipv4,"Gateway: "+gateway,"DNS: "+dns,"DNSSearch: "+dnssearch]))
                     if code == d.OK:
-                        loadedyaml.get('network').get('ethernets')[netifsh] = {'addresses': ipv4.split(","), 'gateway4': gw, 'nameservers': {'addresses': dns.split(","), 'search': dnssearch.split(",")}}
+                        loadedyaml.get('network').get('ethernets')[netifsh] = {'addresses': ipv4.split(","), 'gateway4': gateway, 'nameservers': {'addresses': dns.split(","), 'search': dnssearch.split(",")}}
                         newyaml = yaml.dump(loadedyaml)
         if newyaml != "":
             os.rename(file,file+".backup")
@@ -809,7 +815,55 @@ def managestaticip(config,d):
             pout = subprocess.run(["netplan","apply"], capture_output=True) 
             if pout.returncode != 0:
                 d.msgbox("Error  {0}".format(str(pout.stderr,'utf-8')))
+
+#6.4.2
+def managedhcp(config,d):
+    file = netfileselector(config,d)
+    if file != "":
+        newyaml = ""
+        with open(file,'r') as yamlfile:
+            loadedyaml = yaml.load(yamlfile,Loader=yaml.SafeLoader)
+            choices = []
+            ch = 1
+            shadow = {}
+
+            for net in loadedyaml.get("network").get("ethernets").items():
+                choices.append((str(ch),net[0]))
+                shadow[str(ch)] = net[0]
+                ch = ch+1
             
+            
+            code, tag = d.menu("Which network card do you want to edit",choices=choices,height=len(choices)+4)
+            if code == d.OK:
+                netifsh = shadow[tag]
+
+                code = d.yesno("\n".join(["Confirm DHCP for",netifsh]))
+                if code == d.OK:
+                    loadedyaml.get('network').get('ethernets')[netifsh] = {'dhcp4': True}
+                    newyaml = yaml.dump(loadedyaml)
+
+        if newyaml != "":
+            os.rename(file,file+".backup")
+            with open(file,'w') as yamlfile:
+                yamlfile.write(newyaml)
+
+            pout = subprocess.run(["netplan","apply"], capture_output=True) 
+            if pout.returncode != 0:
+                d.msgbox("Error  {0}".format(str(pout.stderr,'utf-8'))) 
+
+#6.4.4
+def managenetman(config,d):
+    file = netfileselector(config,d)
+    if file != "":
+        openfile(config,d,file) 
+
+        code = d.yesno("\n".join(["Apply changes?"]))
+        if code == d.OK:
+            pout = subprocess.run(["netplan","apply"], capture_output=True) 
+            if pout.returncode != 0:
+                d.msgbox("Error  {0}".format(str(pout.stderr,'utf-8'))) 
+#
+
 # 6.4 manage network
 def managenetwork(config,d):
     code = d.OK
@@ -826,11 +880,11 @@ def managenetwork(config,d):
             if tag == "1":
                 managestaticip(config,d)
             elif tag == "2":
-                d.msgbox("not implemented")
+                managedhcp(config,d)
             elif tag == "3":
                 d.msgbox("not implemented")
             elif tag == "4":
-                d.msgbox("not implemented")
+                managenetman(config,d)
                 
 
 def manageubuntu(config,d):
