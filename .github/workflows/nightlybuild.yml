@@ -39,3 +39,4 @@ jobs:
       with:
         name: "veeamhubrepo_noarch_${{env.VEEAMHUBREPOVERSION}}_nightly"
         path: "dist/*.deb"
+        retention-days: 7
