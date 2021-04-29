@@ -802,6 +802,9 @@ def managestaticip(config,d):
                 if netifsh in loadedyaml.get("network").get("bonds"):
                     section = "bonds"
 
+                if netifsh in loadedyaml.get("network").get("bridges"):
+                    section = "bridges"
+
                 netifyaml = loadedyaml.get("network").get(section).get(netifsh)
 
 
@@ -850,13 +853,14 @@ def managestaticip(config,d):
                 code = d.yesno("\n".join(["Confirm settings","","IPv4: "+addrs,"Gateway: "+gateway,"DNS: "+dns,"DNSSearch: "+dnssearch]))
                 if code == d.OK:
                     ifconf = {'addresses': addrs.split(","), 'gateway4': gateway, 'nameservers': {'addresses': dns.split(","), 'search': dnssearch.split(",")}}
-                    if section == "bonds":
+                    if section == "bonds" or section == "bridges":
                         oldconfig = loadedyaml.get('network').get(section)[netifsh]
                         if oldconfig:
                             if oldconfig.get('parameters'):
                                 ifconf['parameters'] = oldconfig.get('parameters')
                             if oldconfig.get('interfaces'):
                                 ifconf['interfaces'] = oldconfig.get('interfaces')
+
                     loadedyaml.get('network').get(section)[netifsh] = ifconf
 
                     newyaml = yaml.dump(loadedyaml)
@@ -896,19 +900,22 @@ def managedhcp(config,d):
                 if netifsh in loadedyaml.get("network").get("bonds"):
                     section = "bonds"
 
+                if netifsh in loadedyaml.get("network").get("bridges"):
+                    section = "bridges"
 
 
                 code = d.yesno("\n".join(["Confirm DHCP for",netifsh]))
                 if code == d.OK:
                     ifconf = {'dhcp4': True}
 
-                    if section == "bonds":
+                    if section == "bonds" or section == "bridges":
                         oldconfig = loadedyaml.get('network').get(section)[netifsh]
                         if oldconfig:
                             if oldconfig.get('parameters'):
                                 ifconf['parameters'] = oldconfig.get('parameters')
                             if oldconfig.get('interfaces'):
                                 ifconf['interfaces'] = oldconfig.get('interfaces')
+
 
                     loadedyaml.get('network').get(section)[netifsh] = ifconf
                     newyaml = yaml.dump(loadedyaml)
@@ -955,7 +962,7 @@ def managebound(config,d):
 
                         code, modus = d.menu("Which modus do you want?",choices=choices,height=len(choices)+11)
                         if code == d.OK:
-                            parameters = {"mode":"active-backup","primary":nifs[0]} 
+                            parameters = {"mode":"active-backup","primary":nifs[0],"mii-monitor-interval": 100} 
                             if modus == "2":
                                 parameters = {"mode":"802.3ad","lacp-rate":"fast","mii-monitor-interval":100} 
 
@@ -1019,7 +1026,18 @@ def managenetwork(config,d):
             elif tag == "4":
                 managenetman(config,d)
                 
-
+# 6.5 lxdproxy
+def lxdproxy(config,d):
+        code = d.yesno("\n".join(["Are you sure you want to set the world on fire?"]))
+        if code == d.OK:
+            pout = subprocess.run(["sudo","snap","install","lxd"], capture_output=True) 
+            if pout.returncode != 0:
+                d.msgbox("Error  {0}".format(str(pout.stderr,'utf-8')))
+                return
+            else:
+                d.infobox("lxd installed")
+                
+# 6
 def manageubuntu(config,d):
         code = d.OK
         while code == d.OK:
@@ -1028,6 +1046,7 @@ def manageubuntu(config,d):
                                 ("2", "Harden"),
                                 ("3", "Manage Time"),
                                 ("4", "Manage Network"),
+                                ("5", "Add Experimental LXD Proxy"),
                                 ])
             if code == d.OK:
                 if tag == "1":
@@ -1038,6 +1057,8 @@ def manageubuntu(config,d):
                     managetime(config,d)
                 elif tag == "4":
                     managenetwork(config,d)
+                elif tag == "5":
+                    lxdproxy(config,d)
 
  
 # main loop
