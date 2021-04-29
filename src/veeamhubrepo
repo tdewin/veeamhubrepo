@@ -26,14 +26,18 @@ import configparser
 import datetime
 import getpass
 import yaml
+import ipaddress
 
 # Start menu in home() function at the bottom
 # util functions, functions that might be used by different part of the code
 
 # creates a list of all ipv4 address
+def realnics():
+    return [i for i in netifaces.interfaces() if not i == 'lo' ]
+
 def myips():
     ipaddr = []
-    for nif in netifaces.interfaces():
+    for nif in realnics():
         ifaddr = netifaces.ifaddresses(nif)
         if netifaces.AF_INET in ifaddr:
             addrdetails = ifaddr[netifaces.AF_INET]
@@ -42,6 +46,29 @@ def myips():
                 if ip != '127.0.0.1':
                     ipaddr.append(ip)
     return ipaddr
+
+
+def firstipwithnet(networkinterface):
+    ipwithnet = "169.254.128.128/24"
+
+    if netifaces.AF_INET in netifaces.ifaddresses(networkinterface):
+        addrs = netifaces.ifaddresses(networkinterface)[netifaces.AF_INET]
+        if len(addrs) > 0:
+            nm = ipaddress.IPv4Network("0.0.0.0/"+addrs[0]['netmask'])
+            ipwithnet = addrs[0]['addr'] + "/" + str(nm.prefixlen)
+
+    return ipwithnet
+
+def firstgw(networkinterface):
+    gw = "169.254.128.1"
+
+    gws = netifaces.gateways()
+    if netifaces.AF_INET in gws:
+        fgw = [g for g in gws[netifaces.AF_INET] if g[1] == networkinterface ]
+        if len(fgw) > 0:
+            gw = fgw[0][0]
+    
+    return gw
 
 
 def veeamrunning():
@@ -739,6 +766,16 @@ def netfileselector(config,d):
         return files[0]
 
 
+def applynetplanyaml(config,d,yfile,newyaml):
+    if newyaml != "":
+        os.rename(yfile,yfile+".backup")
+        with open(yfile,'w') as yamlfile:
+            yamlfile.write(newyaml)
+
+        pout = subprocess.run(["netplan","apply"], capture_output=True) 
+        if pout.returncode != 0:
+            d.msgbox("Error  {0}".format(str(pout.stderr,'utf-8'))) 
+
 # 6.4.1
 def managestaticip(config,d):
     file = netfileselector(config,d)
@@ -750,63 +787,80 @@ def managestaticip(config,d):
             ch = 1
             shadow = {}
 
-            for net in loadedyaml.get("network").get("ethernets").items():
-                choices.append((str(ch),net[0]))
-                shadow[str(ch)] = net[0]
+            for net in realnics():
+                choices.append((str(ch),net))
+                shadow[str(ch)] = net
                 ch = ch+1
             
             
-            code, tag = d.menu("Which network card do you want to edit",choices=choices,height=len(choices)+4)
+            code, tag = d.menu("Which network card do you want to edit",choices=choices,height=len(choices)+11)
             if code == d.OK:
                 netifsh = shadow[tag]
 
-                netifyaml = loadedyaml.get("network").get("ethernets").get(netifsh)
-
-                default = "0.0.0.0/24"
-                addrs = netifyaml.get('addresses')
-                if addrs:
-                    default = ",".join(addrs)
-                code,ipv4 = d.inputbox("IPv4/subnet e.g "+default,default)
-                if code != d.OK:
-                    return
-
-                default = "0.0.0.0"
-                gw = netifyaml.get('gateway4')
-                if gw:
-                    default = gw 
-                code,gateway = d.inputbox("Gateway "+default,init=default)
-                if code != d.OK:
-                    return
                 
-                defaultdns = "8.8.8.8,8.8.4.4"
-                defaultsearch = ""
+                section = "ethernets"
+                if netifsh in loadedyaml.get("network").get("bonds"):
+                    section = "bonds"
 
-                ns = netifyaml.get('nameservers')
-                if ns:
-                    dns = ns.get('addresses')
-                    if dns:
-                        defaultdns = ",".join(dns)
+                netifyaml = loadedyaml.get("network").get(section).get(netifsh)
 
-                    search = ns.get('search')
-                    if search:
-                        defaultsearch = ",".join(search)
 
-                code,dns = d.inputbox("DNS servers seperated with ,",init=defaultdns)
+                addrs = firstipwithnet(netifsh)
+                if netifyaml:
+                    addrsg = netifyaml.get('addresses')
+                    if addrsg:
+                        addrs = ",".join(addrsg)
+                
+                code,addrs = d.inputbox("IPv4/subnet",addrs)
                 if code != d.OK:
                     return
 
-                code,dnssearch = d.inputbox("DNS search seperated with ,",init=defaultsearch)
+                gw = firstgw(netifsh)
+                if netifyaml:
+                    gwg = netifyaml.get('gateway4')
+                    if gwg:
+                        gw = gwg 
+                
+                code,gateway = d.inputbox("Gateway",init=gw)
+                if code != d.OK:
+                    return
+                    
+                dns = "8.8.8.8,8.8.4.4"
+                search = ""
 
+                if netifyaml:
+                    ns = netifyaml.get('nameservers')
+                    if ns:
+                        dnsg = ns.get('addresses')
+                        if dnsg:
+                            dns = ",".join(dnsg)
+
+                        searchg = ns.get('search')
+                        if searchg:
+                            search = ",".join(searchg)
+
+                code,dns = d.inputbox("DNS servers seperated with ,",init=dns)
+                if code != d.OK:
+                    return
+
+                code,dnssearch = d.inputbox("DNS search seperated with ,",init=search)
+                if code != d.OK:
+                    return
+
+                code = d.yesno("\n".join(["Confirm settings","","IPv4: "+addrs,"Gateway: "+gateway,"DNS: "+dns,"DNSSearch: "+dnssearch]))
                 if code == d.OK:
-                    #d.msgbox(ipv4)
-                    #d.msgbox(gateway)
-                    #d.msgbox(dns)
-                    #d.msgbox(dnssearch)
+                    ifconf = {'addresses': addrs.split(","), 'gateway4': gateway, 'nameservers': {'addresses': dns.split(","), 'search': dnssearch.split(",")}}
+                    if section == "bonds":
+                        oldconfig = loadedyaml.get('network').get(section)[netifsh]
+                        if oldconfig:
+                            if oldconfig.get('parameters'):
+                                ifconf['parameters'] = oldconfig.get('parameters')
+                            if oldconfig.get('interfaces'):
+                                ifconf['interfaces'] = oldconfig.get('interfaces')
+                    loadedyaml.get('network').get(section)[netifsh] = ifconf
 
-                    code = d.yesno("\n".join(["Confirm settings","","IPv4: "+ipv4,"Gateway: "+gateway,"DNS: "+dns,"DNSSearch: "+dnssearch]))
-                    if code == d.OK:
-                        loadedyaml.get('network').get('ethernets')[netifsh] = {'addresses': ipv4.split(","), 'gateway4': gateway, 'nameservers': {'addresses': dns.split(","), 'search': dnssearch.split(",")}}
-                        newyaml = yaml.dump(loadedyaml)
+                    newyaml = yaml.dump(loadedyaml)
+
         if newyaml != "":
             os.rename(file,file+".backup")
             with open(file,'w') as yamlfile:
@@ -827,19 +881,36 @@ def managedhcp(config,d):
             ch = 1
             shadow = {}
 
-            for net in loadedyaml.get("network").get("ethernets").items():
-                choices.append((str(ch),net[0]))
-                shadow[str(ch)] = net[0]
+
+            for net in realnics():
+                choices.append((str(ch),net))
+                shadow[str(ch)] = net
                 ch = ch+1
             
             
-            code, tag = d.menu("Which network card do you want to edit",choices=choices,height=len(choices)+4)
+            code, tag = d.menu("Which network card do you want to edit",choices=choices,height=len(choices)+11)
             if code == d.OK:
                 netifsh = shadow[tag]
 
+                section = "ethernets"
+                if netifsh in loadedyaml.get("network").get("bonds"):
+                    section = "bonds"
+
+
+
                 code = d.yesno("\n".join(["Confirm DHCP for",netifsh]))
                 if code == d.OK:
-                    loadedyaml.get('network').get('ethernets')[netifsh] = {'dhcp4': True}
+                    ifconf = {'dhcp4': True}
+
+                    if section == "bonds":
+                        oldconfig = loadedyaml.get('network').get(section)[netifsh]
+                        if oldconfig:
+                            if oldconfig.get('parameters'):
+                                ifconf['parameters'] = oldconfig.get('parameters')
+                            if oldconfig.get('interfaces'):
+                                ifconf['interfaces'] = oldconfig.get('interfaces')
+
+                    loadedyaml.get('network').get(section)[netifsh] = ifconf
                     newyaml = yaml.dump(loadedyaml)
 
         if newyaml != "":
@@ -850,6 +921,68 @@ def managedhcp(config,d):
             pout = subprocess.run(["netplan","apply"], capture_output=True) 
             if pout.returncode != 0:
                 d.msgbox("Error  {0}".format(str(pout.stderr,'utf-8'))) 
+
+def managebound(config,d):
+    yfile = netfileselector(config,d)
+    if yfile != "":
+        newyaml = ""
+        with open(yfile,'r') as yamlfile:
+            loadedyaml = yaml.load(yamlfile,Loader=yaml.SafeLoader)
+            choices = []
+            shadow = {}
+            ch = 1
+
+            for net in realnics():
+                choices.append((str(ch),net,0))
+                shadow[str(ch)] = net
+                ch = ch+1
+
+            code,choices = d.checklist("Select interfaces for your bound.\nThe first bond will be your primary!!!",choices=choices,height=len(choices)+11)
+            if code == d.OK and len(choices) > 0:
+                nifs = []
+                
+                for c in choices:
+                    nifs.append(shadow[c])
+                
+                code = d.yesno("Are you sure you want to add the following interfaces:\n"+"\n".join(nifs)+"\nPrimary: "+nifs[0])
+                if code == d.OK:
+                    code, bondname = d.inputbox("Give your bond a name in the form bond<num> e.g bond0",init="bond0")
+                    if code == d.OK:
+
+                        
+
+                        choices = [("1","active-backup"),("2","lacp")]
+
+                        code, modus = d.menu("Which modus do you want?",choices=choices,height=len(choices)+11)
+                        if code == d.OK:
+                            parameters = {"mode":"active-backup","primary":nifs[0]} 
+                            if modus == "2":
+                                parameters = {"mode":"802.3ad","lacp-rate":"fast","mii-monitor-interval":100} 
+
+                            bonds = loadedyaml.get('network').get("bonds")
+                            if not bonds:
+                                bonds = {}
+                            
+                            pdef = loadedyaml.get('network').get("ethernets")[nifs[0]]
+                            bondconfig = {"dhcp4": True}
+
+                            if pdef:
+                                code = d.yesno("Do you want me to migrate the network from "+nifs[0])
+                                if code == d.OK:
+                                    bondconfig = pdef
+                           
+                            bondconfig["interfaces"] = nifs
+                            bondconfig["parameters"] = parameters
+                            bonds[bondname] = bondconfig
+                            for nif in nifs:
+                                loadedyaml.get('network').get('ethernets')[nif] = {'dhcp4': False}
+
+                            loadedyaml.get('network')["bonds"] = bonds
+                            newyaml = yaml.dump(loadedyaml)
+
+        if newyaml != "":
+            applynetplanyaml(config,d,yfile,newyaml)
+        
 
 #6.4.4
 def managenetman(config,d):
@@ -875,14 +1008,14 @@ def managenetwork(config,d):
                                 ("2", "Setup DHCP"),
                                 ("3", "Create a Bound"),
                                 ("4", "Manually change netplan"),
-                                ],height=len(ln)+7)
+                                ],height=len(ln)+11)
         if code == d.OK:
             if tag == "1":
                 managestaticip(config,d)
             elif tag == "2":
                 managedhcp(config,d)
             elif tag == "3":
-                d.msgbox("not implemented")
+                managebound(config,d)
             elif tag == "4":
                 managenetman(config,d)
                 
@@ -929,7 +1062,8 @@ class DialogWrapper:
     
     def msgbox(self,infotext,width=80,height=10):
         return self.dialog.msgbox(infotext,width=width,height=height)
-   
+    
+
     def passwordbox(self,infotext,insecure=True):
         return self.dialog.passwordbox(infotext,insecure=insecure)
 
@@ -941,6 +1075,9 @@ class DialogWrapper:
     
     def menu(self,text,choices,height=15,cancel="Cancel"):
         return self.dialog.menu(text,choices=choices,height=height,cancel=cancel)
+
+    def checklist(self,text,choices,height=15,cancel="Cancel"):
+        return self.dialog.checklist(text,choices=choices,height=height,cancel=cancel)
 
     def fselect(self,path,width=80,height=20):
         self.msgbox("Easiest way is to type the path while browsing\nUse / as dir seperator\n\nAlternatively try tab+arrow keys to navigate\nand space to copy",width=60)
@@ -1041,6 +1178,38 @@ class AlternateDialog(DialogWrapper):
 
         return code,userinput
     
+    def checklist(self,text,choices,height=15,cancel="Cancel"):
+        valid = ["e"]
+        for c in choices:
+            valid.append(c[0])
+
+        userinput = ""
+        expl = []
+        allvalid = False
+        while not allvalid:
+            self.cls()
+            print(text)
+            self.lnspacer()
+            for c in choices:
+                print("{}) {}".format(c[0],c[1]))
+            self.lnspacer()
+            print("Multi select by using ',' as a seperator e.g 1,2")
+            userinput = input("Please specify choice or <<e>> to exit:")
+            expl = userinput.split(",")
+            testvalid = True
+            for t in expl:
+                if not t in valid:
+                    testvalid = False
+            if testvalid and len(expl) > 0:
+                allvalid = True
+
+        code = self.OK
+        if userinput == "e":
+            code = self.Cancel
+
+        return code,expl
+    
+
             
     def fselect(self,path,width=80,height=20):
         self.cls()
