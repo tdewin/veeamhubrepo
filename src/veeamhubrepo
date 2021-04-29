@@ -1002,7 +1002,59 @@ def managenetman(config,d):
             pout = subprocess.run(["netplan","apply"], capture_output=True) 
             if pout.returncode != 0:
                 d.msgbox("Error  {0}".format(str(pout.stderr,'utf-8'))) 
-#
+#6.4.6
+def managebridge(config,d):
+    yfile = netfileselector(config,d)
+    if yfile != "":
+        newyaml = ""
+        with open(yfile,'r') as yamlfile:
+            loadedyaml = yaml.load(yamlfile,Loader=yaml.SafeLoader)
+            choices = []
+            shadow = {}
+            ch = 1
+
+            for net in realnics():
+                choices.append((str(ch),net,0))
+                shadow[str(ch)] = net
+                ch = ch+1
+            
+            code,tag = d.menu("Select interfaces for your bridge",choices=choices,height=len(choices)+11)
+            if code == d.OK:
+                netif = shadow[tag]
+                if d.yesno("Are you sure you want to create a bridge on "+netif) == d.OK:
+                    section = "ethernets"
+                    if netif in loadedyaml.get("network").get("bonds"):
+                        section = "bonds"
+                
+
+                    brconfig = {"dhcp4": True}
+                    copysection = loadedyaml.get("network").get(section)[netif]
+
+                    updatetoorig = {"dhcp4": False}
+                    if copysection["interfaces"]:
+                        updatetoorig["interfaces"] = copysection["interfaces"]
+                    if copysection["parameters"]:
+                        updatetoorig["parameters"] = copysection["parameters"]
+                    loadedyaml.get("network").get(section)[netif] = updatetoorig
+
+                    if copysection:
+                        brconfig = copysection
+                        if brconfig["parameters"]:
+                            del brconfig["parameters"]
+                    brconfig["interfaces"] = [netif]
+                    
+                    brs = loadedyaml.get('network').get("bridges")
+                    if not brs:
+                        brs = {}
+
+                    brs["br0"] = brconfig
+
+                    loadedyaml.get('network')["bridges"] = brs
+                    newyaml = yaml.dump(loadedyaml)
+
+        if newyaml != "":
+            applynetplanyaml(config,d,yfile,newyaml)
+
 
 # 6.4 manage network
 def managenetwork(config,d):
@@ -1015,6 +1067,7 @@ def managenetwork(config,d):
                                 ("2", "Setup DHCP"),
                                 ("3", "Create a Bound"),
                                 ("4", "Manually change netplan"),
+                                ("5", "Create a bridge for LXD"),
                                 ],height=len(ln)+11)
         if code == d.OK:
             if tag == "1":
@@ -1025,6 +1078,8 @@ def managenetwork(config,d):
                 managebound(config,d)
             elif tag == "4":
                 managenetman(config,d)
+            elif tag == "5":
+                managebridge(config,d)
                 
 # 6.5 lxdproxy
 def lxdproxy(config,d):
@@ -1035,8 +1090,15 @@ def lxdproxy(config,d):
                 d.msgbox("Error  {0}".format(str(pout.stderr,'utf-8')))
                 return
             else:
-                d.infobox("lxd installed")
-                
+                if not "br0" in realnics():
+                    d.msgbox("Please setup bridge networking first")
+                else:
+                    pout = subprocess.run(["sudo","lxd","init","--auto"], capture_output=True) 
+                    if pout.returncode != 0:
+                        d.msgbox("Error  {0}".format(str(pout.stderr,'utf-8')))
+                        return
+
+                    d.msgbox("Nice detected br0")
 # 6
 def manageubuntu(config,d):
         code = d.OK
