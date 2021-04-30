@@ -929,7 +929,7 @@ def managedhcp(config,d):
             if pout.returncode != 0:
                 d.msgbox("Error  {0}".format(str(pout.stderr,'utf-8'))) 
 
-def managebound(config,d):
+def managebond(config,d):
     yfile = netfileselector(config,d)
     if yfile != "":
         newyaml = ""
@@ -1065,7 +1065,7 @@ def managenetwork(config,d):
         code, tag = d.menu("\n".join(ln),
                        choices=[("1", "Setup STATIC IP"),
                                 ("2", "Setup DHCP"),
-                                ("3", "Create a Bound"),
+                                ("3", "Create a Bond"),
                                 ("4", "Manually change netplan"),
                                 ("5", "Create a bridge for LXD"),
                                 ],height=len(ln)+11)
@@ -1075,15 +1075,15 @@ def managenetwork(config,d):
             elif tag == "2":
                 managedhcp(config,d)
             elif tag == "3":
-                managebound(config,d)
+                managebond(config,d)
             elif tag == "4":
                 managenetman(config,d)
             elif tag == "5":
                 managebridge(config,d)
                 
-# 6.5 lxdproxy
-def lxdproxy(config,d):
-        code = d.yesno("\n".join(["Are you sure you want to set the world on fire?"]))
+# 6.5.1 lxdproxy
+def lxdsetup(config,d):
+        code = d.yesno("\n".join(["Are you sure you want to set this up? This is highly experimental"]))
         if code == d.OK:
             pout = subprocess.run(["sudo","snap","install","lxd"], capture_output=True) 
             if pout.returncode != 0:
@@ -1093,12 +1093,124 @@ def lxdproxy(config,d):
                 if not "br0" in realnics():
                     d.msgbox("Please setup bridge networking first")
                 else:
-                    pout = subprocess.run(["sudo","lxd","init","--auto"], capture_output=True) 
+                    d.infobox("Doing lxd initial setup, this can take a while")
+                    pout = subprocess.run(["lxd","init","--auto"], capture_output=True) 
                     if pout.returncode != 0:
                         d.msgbox("Error  {0}".format(str(pout.stderr,'utf-8')))
                         return
+                    pout = subprocess.run(["lxd","waitready"], capture_output=True) 
+                    if pout.returncode != 0:
+                        d.msgbox("Error  {0}".format(str(pout.stderr,'utf-8')))
+                        return
+                    pout = subprocess.run("lxc profile copy default veeamproxy".split(), capture_output=True) 
+                    if pout.returncode != 0:
+                        d.msgbox("Error  {0}".format(str(pout.stderr,'utf-8')))
+                        return
+                    pout = subprocess.run("lxc profile device remove veeamproxy eth0".split(), capture_output=True) 
+                    if pout.returncode != 0:
+                        d.msgbox("Error  {0}".format(str(pout.stderr,'utf-8')))
+                        return
+                                        
 
-                    d.msgbox("Nice detected br0")
+def lxcproxyinfo(d,tolerateerror=False):
+        s = subprocess.run(["lxc","list","lxdproxy","--format","yaml"], capture_output=True)
+        lxpyaml = {"status":{"status_code":1}}
+
+        if s.returncode == 0:
+            lxpyaml = yaml.load(s.stdout,Loader=yaml.SafeLoader)[0]
+        else:
+            if not tolerateerror:
+                d.msgbox("Unexpected error "+str(s.stderr))
+        return s.returncode,lxpyaml
+
+def lxdexec(d,step,instructarr):
+    d.infobox("LXC exec : "+step)
+    pout = subprocess.run(instructarr, capture_output=True)
+    if pout.returncode != 0:
+        d.msgbox("Error  {0}".format(str(pout.stderr,'utf-8')))
+        return False
+    else:
+        return True
+
+def lxctryexec(d):
+    trycmd = ["lxc","exec","lxdproxy","--","/bin/bash","-c","echo ''"] 
+    tryouts = 12
+
+    pout = subprocess.run(trycmd, capture_output=True)
+    while pout.returncode != 0 and tryouts > 0:
+        pout = subprocess.run(trycmd, capture_output=True)
+        tryouts = tryouts - 1
+        d.infobox("Waiting for image to stabilize\n"+str(tryouts)+"\n"+str(pout.stderr))
+        time.sleep(5)
+    
+    if pout.returncode != 0:
+        d.msgbox("Tried to stabilize image but didn't work "+str(pout.stderr))
+    return pout.returncode
+
+def lxdsetupproxy(config,d):
+    steps = [
+            { "step":"lxd waitready", "instruct":["lxd","waitready"]},
+            { "step":"lxc proxy (download 3GB, get a coffee)", "instruct":["lxc","launch","ubuntu:20.04","lxdproxy","--vm","--network","br0","--profile","veeamproxy"] }
+        ]
+    for s in steps:
+        success = lxdexec(d,s["step"],s["instruct"])
+        if not success:
+            return
+
+    #code 103 means the vm is running
+    scode = 0
+    while scode != 103 and scode != -1:
+        err,lxcinfo = lxcproxyinfo(d,True)
+        if err != 0:
+            scode = -1
+        scode = lxcinfo.get("state").get("status_code")
+        d.infobox("Waiting for VM to get ready")
+        time.sleep(1)
+
+    if scode == 103:
+        d.infobox("LXC proxy running")
+        lxctryexec(d)
+
+        code,ipaddr = d.inputbox("IP for proxy","0.0.0.0/24")
+        code,gateway = d.inputbox("Gateway for proxy","0.0.0.0")
+        code,dns = d.inputbox("DNS server for proxy","8.8.8.8")
+
+        #this really needs some cleaner way
+        modnet = 'NETPLAN=$(find /etc/netplan/*.yaml) && sed -i \'s/\\([ ]*\\)dhcp4: true/\\1addresses: ['+ipaddr.replace("/",'\\/')+']\\n\\1gateway4: '+gateway+'\\n\\1nameservers: { addresses: ['+dns+']}/\' $NETPLAN'
+
+        steps = [ 
+            { "step":"modifying NET", "instruct":["lxc","exec","lxdproxy","--","/bin/bash","-c",modnet]}, 
+            { "step":"applying NET", "instruct":["lxc","exec","lxdproxy","--","/bin/bash","-c","netplan apply"]}, 
+            { "step":"setup SSH", "instruct":["lxc","exec","lxdproxy","--","/bin/bash","-c","ssh-keygen -A && systemctl start ssh && systemctl enable ssh"]}, 
+            { "step":"setup USER", "instruct":["lxc","exec","lxdproxy","--","/bin/bash","-c","useradd -m veeamproxy && echo 'veeamproxy:$6$moMETbaDQEN2m8pt$UTL5FzNLsIb1PbFGXSyr/AJiMjLJcYbcjxWyNEo7rTR5B04CCFxGatNArKOZvnL/UtnkhKLXJQH68y.O5a8sb.' | chpasswd -e"]},
+            { "step":"allow PW Login", "instruct":["lxc","exec","lxdproxy","--","/bin/bash","-c","sed -i 's/PasswordAuthentication no/PasswordAuthentication yes/g' /etc/ssh/sshd_config && systemctl restart sshd"]},
+            { "step":"adding SUDO", "instruct":["lxc","exec","lxdproxy","--","/bin/bash","-c","echo 'veeamproxy    ALL=(ALL:ALL) ALL' >> /etc/sudoers"]},
+        ]
+            #{ "step":"", "instruct":["lxc","exec","lxdproxy","--","/bin/bash","-c","''"]},
+        for s in steps:
+            success = lxdexec(d,s["step"],s["instruct"])
+            if not success:
+                return
+
+        d.msgbox("Proxy should be reachable on "+ipaddr+" with veeamproxy:changeme\nMake sure to change the password by logging in via ssh/putty and using the passwd command")
+
+
+
+
+def managelxd(config,d):
+    code,agree = d.inputbox("This potentially creates another security vector\nPlease type 'iunderstand' to continue")
+    if code == d.OK and agree == 'iunderstand':
+        while code == d.OK:
+            code, tag = d.menu("What do you want to do:",
+                       choices=[("1", "Initial setup"),
+                                ("2", "Create Proxy")
+                                ])
+            if code == d.OK:
+                if tag == "1":
+                    lxdsetup(config,d)
+                elif tag == "2":
+                    lxdsetupproxy(config,d)
+
 # 6
 def manageubuntu(config,d):
         code = d.OK
@@ -1120,7 +1232,7 @@ def manageubuntu(config,d):
                 elif tag == "4":
                     managenetwork(config,d)
                 elif tag == "5":
-                    lxdproxy(config,d)
+                    managelxd(config,d)
 
  
 # main loop
