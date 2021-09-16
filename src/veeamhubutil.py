@@ -7,6 +7,7 @@ import pystemd
 import subprocess
 import re
 import json
+import humanize
 
 # creates a list of all ipv4 address
 def realnics():
@@ -161,17 +162,32 @@ def usersexists(user):
 # In case of children, do the recursion
 # I is kept to keep the logical order
 #recursive lsblk()
+class BlkPathSize:
+    Path = ""
+    Size = 0
+
+    def MenuEntry(self):
+        return "{} {}".format(self.Path,humanize.filesize.naturalsize(self.Size))
+
+    def __init__(self,jsonblock):
+        self.Path = jsonblock["path"]
+        self.Size = jsonblock["size"]
+
 def rlsblk(blkdevices,blklist):
     for device in blkdevices:
         if not device["mountpoint"] and not "children" in device and not device["maj:min"].split(":")[0] == "11" :
             #11 -> /dev/sr[]
-            blklist.append(device)
+            blkdev = BlkPathSize(device)
+            #if bigger then 1GB, cause everything smaller than 1GB really doesn't make sense
+            if blkdev.Size > 1073741824:
+                blklist.append(blkdev)
+
         elif "children" in device:
             rlsblk(device["children"],blklist)
 
 
 def lsblk():
-    lsout = subprocess.run(["lsblk", "--json", "-o","PATH,MAJ:MIN,NAME,MOUNTPOINT,SIZE"], capture_output=True)
+    lsout = subprocess.run(["lsblk", "--json","-b","-o","PATH,MAJ:MIN,NAME,MOUNTPOINT,SIZE"], capture_output=True)
     if lsout.returncode != 0:
         raise Exception("Unable to load partition schema"+lsout.stderr)
 

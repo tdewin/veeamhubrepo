@@ -101,8 +101,8 @@ def formatdrive(config,d):
     repoadded = ""
 
     for device in veeamhubutil.lsblk():
-        choices.append((str(i),"{} {}".format(device["path"],device["size"])))
-        shadow[i] = device["path"]
+        choices.append((str(i),device.MenuEntry()))
+        shadow[i] = device.Path
         i=i+1
      
     code, tag = d.menu("Select partition to format", choices=choices)

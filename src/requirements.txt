@@ -2,3 +2,4 @@ netifaces==0.10.9
 psutil==5.8.0
 pythondialog==3.5.1
 PyYAML==5.3.1
+humanize==1.0.0

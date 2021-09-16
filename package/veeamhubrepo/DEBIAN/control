@@ -5,6 +5,6 @@ Priority: optional
 Architecture: all
 Essential: no
 Installed-Size: 1024
-Maintainer: github.com/veeamhub
-Depends: python3-dialog, python3-pystemd, openssh-server, python3-psutil, nano, python3-yaml
-Description: simple managers for immutable repositories
+Maintainer: github.com/tdewin
+Depends: python3-dialog, python3-pystemd, openssh-server, python3-psutil, nano, python3-yaml, python3-humanize
+Description: simple managers for immutable veeam repositories
