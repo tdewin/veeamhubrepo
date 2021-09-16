@@ -25,57 +25,9 @@ import ipaddress
 #local imports
 #
 import dialogwrappers
+import veeamhubutil
 
 # Start menu in home() function at the bottom
-# util functions, functions that might be used by different part of the code
-
-# creates a list of all ipv4 address
-def realnics():
-    return [i for i in netifaces.interfaces() if not i == 'lo' ]
-
-def myips():
-    ipaddr = []
-    for nif in realnics():
-        ifaddr = netifaces.ifaddresses(nif)
-        if netifaces.AF_INET in ifaddr:
-            addrdetails = ifaddr[netifaces.AF_INET]
-            for addr in addrdetails:
-                ip = addr['addr']
-                if ip != '127.0.0.1':
-                    ipaddr.append(ip)
-    return ipaddr
-
-
-def firstipwithnet(networkinterface):
-    ipwithnet = "169.254.128.128/24"
-
-    if netifaces.AF_INET in netifaces.ifaddresses(networkinterface):
-        addrs = netifaces.ifaddresses(networkinterface)[netifaces.AF_INET]
-        if len(addrs) > 0:
-            nm = ipaddress.IPv4Network("0.0.0.0/"+addrs[0]['netmask'])
-            ipwithnet = addrs[0]['addr'] + "/" + str(nm.prefixlen)
-
-    return ipwithnet
-
-def firstgw(networkinterface):
-    gw = "169.254.128.1"
-
-    gws = netifaces.gateways()
-    if netifaces.AF_INET in gws:
-        fgw = [g for g in gws[netifaces.AF_INET] if g[1] == networkinterface ]
-        if len(fgw) > 0:
-            gw = fgw[0][0]
-    
-    return gw
-
-
-def veeamrunning():
-    procs = [p for p in psutil.process_iter(['pid', 'name', 'username']) if "veeamtransport" in p.name()]
-    return len(procs) > 0
-
-def veeamreposshcheck(username):
-    procs = [p for p in psutil.process_iter(['pid', 'name', 'username']) if username in p.username() and "ssh" in p.name()]
-    return len(procs) > 0
 
 # Open a file for reading, by default trying to use config reader
 # By default nano is set in the config file
@@ -93,37 +45,6 @@ def openfile(config,d,path):
         subprocess.call(procrun)
     else:
         d.editbox(path,width=80,height=30)
-
-def getsshservice():
-    ssh = pystemd.systemd1.Unit(b'ssh.service')
-    ssh.load()
-    return ssh
-
-def is_ssh_on():
-    s = getsshservice()
-    return s.Unit.ActiveState == b'active'
-
-def ufw_is_inactive():
-	ufw = subprocess.run(["ufw", "status"], capture_output=True)
-	if ufw.returncode == 0:
-		return "inactive" in str(ufw.stdout,"utf-8")
-	else:
-		raise Exception("ufw feedback not as expected {}".format(ufw.stdout))
-
-def ufw_activate():
-	ufw = subprocess.run(["ufw","--force","enable"], capture_output=True)
-	if ufw.returncode != 0:
-		raise Exception("ufw feedback not as expected {}".format(ufw.stdout))
-	else:
-		return ufw.stdout
-
-def ufw_ssh(setstatus="deny"):
-	ufw = subprocess.run(["ufw",setstatus,"ssh"], capture_output=True)
-	if ufw.returncode != 0:
-		raise Exception("ufw feedback not as expected {}".format(ufw.stdout))
-	else:
-		return ufw.stdout
-
 
 def packagetest(dpkgtest):
 	code = 0
@@ -162,36 +83,6 @@ def installpackage(d,packagename):
     
     return error
 
-def gettimeinfo():
-    timeinfo = ["Could not fetch timeinfo"]
-    time = ""
-    date = ""
-    zone = ""
-    ntpactive = False
-    pout = subprocess.run(["timedatectl","status"], capture_output=True) 
-    if pout.returncode == 0:
-        timeinfo = []
-        for line in str(pout.stdout,'utf-8').split("\n"):
-            line = line.strip()
-            if line != "":
-                tim = re.match("Local time: [A-Za-z]+ ([0-9]{4}-[0-9]{2}-[0-9]{2}) ([0-9]{2}:[0-9]{2}:[0-9]{2})",line)
-                if tim:
-                    time = tim.group(2)
-                    date = tim.group(1)
-                else:
-                    zm = re.match("Time zone: ([A-Za-z/]+)",line)
-                    if zm:
-                        zone = zm.group(1)
-                    else:
-                        ntpm = re.match("NTP service: ([A-Za-z/]+)",line)
-                        if ntpm:
-                            ntpactive = ntpm.group(1) == "active"
-                            
-                timeinfo.append(line)
-
-    return timeinfo,time,date,zone,ntpactive
-
-# end of util functions
 
 # Menu 1 Create User
 # Check if the user exists by parsing /etc/passwd
@@ -377,7 +268,7 @@ def formatdrive(config,d):
 # Menu 3 register the server
 def registerserver(config,d):
         forceregister = False
-        if veeamrunning():
+        if veeamhubutil.veeamrunning():
             c = d.yesno("Veeam Transport Service is already running, do you want to continue")
             if c != d.OK:
                 return
@@ -386,7 +277,7 @@ def registerserver(config,d):
 
         # uses dbus to talk to the service, should be more stable then parsing systemctl output
         # enable ssh when registration starts
-        ssh = getsshservice()
+        ssh = veeamhubutil.getsshservice()
         sshstarted = False 
         sshstop = False
         if ssh.Unit.ActiveState != b'active':
@@ -399,8 +290,8 @@ def registerserver(config,d):
             sshstarted = True
 
         # if ufw is on (firewall), enable ssh
-        if not ufw_is_inactive():
-            ufw_ssh(setstatus="allow")
+        if not veeamhubutil.ufw_is_inactive():
+            veeamhubutil.ufw_ssh(setstatus="allow")
 
         #if ssh started, then add a temp sudo file giving the repouser sudo rights
         if sshstarted:
@@ -415,11 +306,11 @@ def registerserver(config,d):
                     timeout = config['registertimeout']
                 sleeper = 5
                 try :
-                    while (not veeamrunning() or forceregister) and timeout > 0:
+                    while (not veeamhubutil.veeamrunning() or forceregister) and timeout > 0:
                         lines = ["Go to the backup server and connect with single use cred",
                                 "User :",config["repouser"],""
                                 "IPs :"]
-                        lines = lines + myips() + ["","Repos:"]
+                        lines = lines + veeamhubutil.myips() + ["","Repos:"]
                         for repo in config['repositories']:
                             lines.append(repo)
                         if forceregister:
@@ -428,8 +319,8 @@ def registerserver(config,d):
                         d.infobox("\n".join(lines),width=60,height=(len(lines)+10))
                         timeout = timeout-sleeper
                         time.sleep(sleeper)
-                    if veeamrunning():
-                        while veeamreposshcheck(config["repouser"]) and timeout > 0:
+                    if veeamhubutil.veeamrunning():
+                        while veeamhubutil.veeamreposshcheck(config["repouser"]) and timeout > 0:
                             d.infobox("Veeam Process detected\nWaiting for SSH to stop or for timeout ({})".format(timeout))
                             timeout = timeout-sleeper
                             time.sleep(sleeper)
@@ -441,8 +332,8 @@ def registerserver(config,d):
                 if sshstop:
                     ssh.Unit.Stop(b'replace')
                 
-                if not ufw_is_inactive():
-                    ufw_ssh(setstatus="deny")
+                if not veeamhubutil.ufw_is_inactive():
+                    veeamhubutil.ufw_ssh(setstatus="deny")
             else:
                 d.msgbox("Sudo file already exists, possible breach, please clean up by using sudo rm {0}".format(sudofp))
         else:
@@ -567,7 +458,7 @@ def update(config,d):
 
 # 6.2 harden
 def disablessh():
-    ssh = getsshservice()
+    ssh = veeamhubutil.getsshservice()
     if ssh.Unit.ActiveState == b'active':
         ssh.Unit.Stop(b'replace')
 		
@@ -575,12 +466,12 @@ def disablessh():
     mgr.load()
     if len([serv for serv in mgr.Manager.ListUnitFiles() if "sshd" in str(serv[0]) ]) > 0:
         mgr.Manager.DisableUnitFiles([b'sshd.service'],False)
-    if not ufw_is_inactive():
-        ufw_ssh(setstatus="deny")
+    if not veeamhubutil.ufw_is_inactive():
+        veeamhubutil.ufw_ssh(setstatus="deny")
 
 def enablefw():
-    if ufw_is_inactive():
-         ufw_activate()
+    if veeamhubutil.ufw_is_inactive():
+         veeamhubutil.ufw_activate()
 
 def harden(config,d):
     code, tag = d.menu("What do you want to do:",
@@ -593,11 +484,11 @@ def harden(config,d):
         elif tag == "2":
             disablessh()
         elif tag == "3":
-            ssh = getsshservice()
+            ssh = veeamhubutil.getsshservice()
             if ssh.Unit.ActiveState != b'active':
                 ssh.Unit.Start(b'replace')
-            if not ufw_is_inactive():
-                ufw_ssh(setstatus="allow")
+            if not veeamhubutil.ufw_is_inactive():
+                veeamhubutil.ufw_ssh(setstatus="allow")
             d.msgbox("SSH started but not on reboot\nDo not forget to Stop it again!!",width=60)
 
 # 6.3 time
@@ -725,7 +616,7 @@ def ntp(config,d):
 def managetime(config,d):
         code = d.OK
         while code == d.OK:
-            ln,time,date,zone,ntpactive = gettimeinfo()
+            ln,time,date,zone,ntpactive = veeamhubutil.gettimeinfo()
             ln.append("") 
             ln.append("What do you want to do")
             code, tag = d.menu("\n".join(ln),
@@ -785,7 +676,7 @@ def managestaticip(config,d):
             ch = 1
             shadow = {}
 
-            for net in realnics():
+            for net in veeamhubutil.realnics():
                 choices.append((str(ch),net))
                 shadow[str(ch)] = net
                 ch = ch+1
@@ -806,7 +697,7 @@ def managestaticip(config,d):
                 netifyaml = loadedyaml.get("network").get(section).get(netifsh)
 
 
-                addrs = firstipwithnet(netifsh)
+                addrs = veeamhubutil.firstipwithnet(netifsh)
                 if netifyaml:
                     addrsg = netifyaml.get('addresses')
                     if addrsg:
@@ -816,7 +707,7 @@ def managestaticip(config,d):
                 if code != d.OK:
                     return
 
-                gw = firstgw(netifsh)
+                gw = veeamhubutil.firstgw(netifsh)
                 if netifyaml:
                     gwg = netifyaml.get('gateway4')
                     if gwg:
@@ -884,7 +775,7 @@ def managedhcp(config,d):
             shadow = {}
 
 
-            for net in realnics():
+            for net in veeamhubutil.realnics():
                 choices.append((str(ch),net))
                 shadow[str(ch)] = net
                 ch = ch+1
@@ -937,7 +828,7 @@ def managebond(config,d):
             shadow = {}
             ch = 1
 
-            for net in realnics():
+            for net in veeamhubutil.realnics():
                 choices.append((str(ch),net,0))
                 shadow[str(ch)] = net
                 ch = ch+1
@@ -1011,7 +902,7 @@ def managebridge(config,d):
             shadow = {}
             ch = 1
 
-            for net in realnics():
+            for net in veeamhubutil.realnics():
                 choices.append((str(ch),net,0))
                 shadow[str(ch)] = net
                 ch = ch+1
@@ -1088,7 +979,7 @@ def lxdsetup(config,d):
                 d.msgbox("Error  {0}".format(str(pout.stderr,'utf-8')))
                 return
             else:
-                if not "br0" in realnics():
+                if not "br0" in veeamhubutil.realnics():
                     d.msgbox("Please setup bridge networking first")
                 else:
                     d.infobox("Doing lxd initial setup, this can take a while")
@@ -1325,8 +1216,8 @@ def home(style="default"):
     while code == d.OK:
         updated = False
     
-        ln = ["Current IPv4: {}".format(",".join(myips()))]
-        if is_ssh_on():
+        ln = ["Current IPv4: {}".format(",".join(veeamhubutil.myips()))]
+        if veeamhubutil.is_ssh_on():
             ln.append("! SSH is running !")
 
         ln.append("")
