@@ -219,7 +219,7 @@ def registerserver(config,d,wizardstart=False):
         sshstarted = False 
         sshstop = False
         if ssh.Unit.ActiveState != b'active':
-            code == d.OK
+            code = d.OK
             if not wizardstart:
                 code = d.yesno("SSH is not started, shall I temporarily start it?")
                 
