@@ -133,9 +133,9 @@ def formatdrive(config,d):
                             d.msgbox("Parted not found, stopping")
                             return 1,repoadded
 
-                d.msgbox(f"Now formating {part} with XFS")
- 
-                time.sleep(1)
+                d.infobox(f"Now formating {part} with XFS")
+                #sometimes disk is not yet synced if too fast
+                time.sleep(2)
                 pout = subprocess.run(["mkfs.xfs","-b","size=4096","-m","reflink=1,crc=1",part], capture_output=True)
                 if pout.returncode != 0:
                     force = d.yesno("mkfs.xfs failed, do you want me to try to force it?\n{0}".format(str(pout.stderr,'utf-8')),width=80)
