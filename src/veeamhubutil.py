@@ -6,6 +6,7 @@ import psutil
 import pystemd
 import subprocess
 import re
+import json
 
 # creates a list of all ipv4 address
 def realnics():
@@ -153,4 +154,33 @@ def usersexists(user):
                 found = True
 
     return found
+
+# Makes a list of candidate drives from lsblk
+# Uses recursion to dig deeper
+# Drive is candidate if it does not have child partitions / is not mounter / is not a CD
+# In case of children, do the recursion
+# I is kept to keep the logical order
+#recursive lsblk()
+def rlsblk(blkdevices,blklist):
+    for device in blkdevices:
+        if not device["mountpoint"] and not "children" in device and not device["maj:min"].split(":")[0] == "11" :
+            #11 -> /dev/sr[]
+            blklist.append(device)
+        elif "children" in device:
+            rlsblk(device["children"],blklist)
+
+
+def lsblk():
+    lsout = subprocess.run(["lsblk", "--json", "-o","PATH,MAJ:MIN,NAME,MOUNTPOINT,SIZE"], capture_output=True)
+    if lsout.returncode != 0:
+        raise Exception("Unable to load partition schema"+lsout.stderr)
+
+    jout = json.loads(lsout.stdout)
+    blklist = []
+    rlsblk(jout["blockdevices"],blklist)
+    return blklist
+
+
+
+
 

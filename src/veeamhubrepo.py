@@ -92,21 +92,6 @@ def setrepouser(config,d):
         config["repouser"] = user
 
 # Menu 2 Format drive
-# Makes a list of candidate drives from lsblk
-# Uses recursion to dig deeper
-# Drive is candidate if it does not have child partitions / is not mounter / is not a CD 
-# In case of children, do the recursion
-# I is kept to keep the logical order
-def rlsblk(devices,choices,shadow,i):
-    for device in devices:
-        if not device["mountpoint"] and not "children" in device and not device["maj:min"].split(":")[0] == "11" :
-            choices.append((str(i),"{} {}".format(device["path"],device["size"])))
-            shadow[i] = device["path"]
-            i=i+1
-        elif "children" in device:
-                i = rlsblk(device["children"],choices,shadow,i)
-    return i
-
 # the format function itself
 def formatdrive(config,d):
     choices = [("1","Manually define disk")]
@@ -115,30 +100,10 @@ def formatdrive(config,d):
 
     repoadded = ""
 
-    #lsblk --json -o PATH,MAJ:MIN,NAME,MOUNTPOINT,SIZE
-    #output nice json we can parse and includes lvm volumes and disk size
-    #proc part only contains phys devices
-
-    trypart = True
-
-    #if lsblk is available, use it, otherwise read /proc/partitions which has less info
-    if shutil.which("lsblk") is not None:
-        lsout = subprocess.run(["lsblk", "--json", "-o","PATH,MAJ:MIN,NAME,MOUNTPOINT,SIZE"], capture_output=True)
-        if lsout.returncode == 0:
-            jout = json.loads(lsout.stdout)
-            i = rlsblk(jout["blockdevices"],choices,shadow,i)
-            trypart = False
-
-    if trypart:
-        with open('/proc/partitions','r') as outfile:
-            parts = outfile.readlines()
-            for part in parts:
-                partsplit = re.split("\s+",part.strip())
-                if partsplit[0] == "8":
-                    #8       16   52428800 sdb
-                    choices.append((str(i),"/dev/{}".format(partsplit[3])))
-                    shadow[i] = "/dev/{0}".format(partsplit[3])
-                    i=i+1
+    for device in veeamhubutil.lsblk():
+        choices.append((str(i),"{} {}".format(device["path"],device["size"])))
+        shadow[i] = device["path"]
+        i=i+1
      
     code, tag = d.menu("Select partition to format", choices=choices)
     if code == d.OK:
