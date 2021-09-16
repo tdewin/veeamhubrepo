@@ -204,7 +204,7 @@ def formatdrive(config,d):
 
 
 # Menu 3 register the server
-def registerserver(config,d):
+def registerserver(config,d,wizardstart=False):
         forceregister = False
         if veeamhubutil.veeamrunning():
             c = d.yesno("Veeam Transport Service is already running, do you want to continue")
@@ -219,7 +219,10 @@ def registerserver(config,d):
         sshstarted = False 
         sshstop = False
         if ssh.Unit.ActiveState != b'active':
-            code = d.yesno("SSH is not started, shall I temporarily start it?")
+            code == d.OK
+            if not wizardstart:
+                code = d.yesno("SSH is not started, shall I temporarily start it?")
+                
             if code == d.OK:
                 ssh.Unit.Start(b'replace')
                 sshstarted = True
@@ -1146,7 +1149,9 @@ def home(style="default"):
             if c == d.OK:
                 update(config,d)
 
-            registerserver(config,d)
+            c = d.yesno("Are you ready to register the server with Veeam B&R now?")
+            if c == d.OK:
+                registerserver(config,d,True)
 
             
 
