@@ -16,7 +16,7 @@ jobs:
       run: "echo \"VEEAMHUBREPOVERSION=$(cat src/veeamhubrepo.py | grep -e  '# VEEAMHUBREPOVERSION:' | sed 's/# VEEAMHUBREPOVERSION: //;s/\\s*//g')\" >> $GITHUB_ENV"
       
     - name: Copy file
-      run: "cp src/*  package/veeamhubrepo/usr/bin"
+      run: "cp src/*  package/veeamhubrepo/usr/share/veeamhubrepo"
       
     - name: Mark version
       run: 'echo "${{env.VEEAMHUBREPOVERSION}} nightly $(date +%Y-%d-%m)" > package/veeamhubrepo/usr/share/veeamhubrepo/release.txt'
