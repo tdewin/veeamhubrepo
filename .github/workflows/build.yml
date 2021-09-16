@@ -11,14 +11,14 @@ jobs:
     - uses: actions/checkout@v2
 
     - name: Get version
-      run: "echo \"VEEAMHUBREPOVERSION=$(cat src/veeamhubrepo | grep -e  '# VEEAMHUBREPOVERSION:' | sed 's/# VEEAMHUBREPOVERSION: //;s/\\s*//g')\" >> $GITHUB_ENV"
-      
-    - name: Copy file
-      run: "cp src/veeamhubrepo  package/veeamhubrepo/usr/bin"
+      run: "echo \"VEEAMHUBREPOVERSION=$(cat src/veeamhubrepo.py | grep -e  '# VEEAMHUBREPOVERSION:' | sed 's/# VEEAMHUBREPOVERSION: //;s/\\s*//g')\" >> $GITHUB_ENV"
       
     - name: Mark version
-      run: 'mkdir -p package/veeamhubrepo/usr/share/veeamhubrepo/ && echo "${{env.VEEAMHUBREPOVERSION}} GA" > package/veeamhubrepo/usr/share/veeamhubrepo/release.txt'
-    
+      run: 'echo "${{env.VEEAMHUBREPOVERSION}} GA" > package/veeamhubrepo/usr/share/veeamhubrepo/release.txt'
+
+    - name: Copy file
+      run: "cp src/*  package/veeamhubrepo/usr/share/veeamhubrepo"
+      
     - name: Set version in package
       run: 'sed -i "s/Version: .*/Version: ${{env.VEEAMHUBREPOVERSION}}/" package/veeamhubrepo/DEBIAN/control'
     - name: Cleanup gitkeep
