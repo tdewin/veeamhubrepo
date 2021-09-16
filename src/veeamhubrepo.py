@@ -46,62 +46,35 @@ def openfile(config,d,path):
     else:
         d.editbox(path,width=80,height=30)
 
-def packagetest(dpkgtest):
-	code = 0
-	pout = subprocess.run(["dpkg","-s",dpkgtest], capture_output=True)
-	if pout.returncode != 0:
-		code = -1
-	else:
-		for ln in str(pout.stdout,"utf-8").split("\n"):
-			if re.match("Status: install ok installed",ln):
-				code = 1
-	return code
 
 def removepackage(d,packagename):
-    pout = subprocess.run(["apt-get","remove",packagename,"-y"], capture_output=True) 
-    if pout.returncode != 0:
-        d.msgbox("Error removing {0}".format(str(pout.stderr,'utf-8')))
-        error = True
+    d.infobox("Removing package {}".format(packagename))
+    try:
+        veeamhubutil.removepackage(packagename)
+    except Exception as e:
+        d.msgbox(e.args[0])
 
 
 def installpackage(d,packagename):
     error = False
 
-
-    d.infobox("Checking repo's for definitions")
-    pout = subprocess.run(["apt-get","update","-y"], capture_output=True) 
-    if pout.returncode != 0:
-        d.msgbox("Error updating {0}".format(str(pout.stderr,'utf-8')))
+    d.infobox("Installing package {}".format(packagename))
+    try:
+        veeamhubutil.installpackage(packagename)
+    except Exception as e:
+        d.msgbox(e.args[0])
         error = True
-   
-    if not error:
-        d.infobox("Installing {}".format(packagename))
-        pout = subprocess.run(["apt-get","install",packagename,"-y"], capture_output=True) 
-        if pout.returncode != 0:
-            d.msgbox("Error updating {0}".format(str(pout.stderr,'utf-8')))
-            error = True
-    
+
     return error
 
 
+
 # Menu 1 Create User
-# Check if the user exists by parsing /etc/passwd
-def usersexists(user):
-    found = False
-    with open("/etc/passwd", 'r') as outfile:
-        allu = outfile.readlines()
-        for u in allu:
-            us = u.split(":")
-            if us[0] == user:
-                found = True
-
-    return found
-
 # the repouser function itself
 def setrepouser(config,d):
     code,user = d.inputbox("Confirm your user",init=config["repouser"])
     if code == d.OK:
-        if not usersexists(user):
+        if not veeamhubutil.usersexists(user):
             code = d.yesno("User {0} does not exists, do you want to create it?".format(user))
             if code == d.OK:
                 pout = subprocess.run(["useradd","-m",user], capture_output=True) 
@@ -547,7 +520,7 @@ def settime(config,d,time,date,zone,ntpactive):
 
 # 6.3.3 disable ntp
 def disablentp(config,d):
-    if packagetest("systemd-timesyncd") != 1:
+    if veeamhubutil.packagetest("systemd-timesyncd") != 1:
         d.msgbox("NTP is not installed (timesyncd), doing nothing")
     else:
         tsd = pystemd.systemd1.Unit(b'systemd-timesyncd.service')
@@ -565,7 +538,7 @@ def disablentp(config,d):
 
 # 6.3.4 ntp
 def ntp(config,d):
-        if packagetest("systemd-timesyncd") != 1:
+        if veeamhubutil.packagetest("systemd-timesyncd") != 1:
             c = d.yesno("Systemd-timesyncd does not seem to be install it\nDo you want to install it?")
             if c != d.OK:
                 return
@@ -1237,7 +1210,7 @@ def home(style="default"):
                 setrepouser(config,d)
                 updated = True
             elif tag == "2" or tag == "5":
-                if usersexists(config["repouser"]):
+                if veeamhubutil.usersexists(config["repouser"]):
                     if tag == "2":
                         rcode,mp = formatdrive(config,d)
                         if rcode == 0 and mp != "":

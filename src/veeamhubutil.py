@@ -114,3 +114,43 @@ def gettimeinfo():
                 timeinfo.append(line)
 
     return timeinfo,time,date,zone,ntpactive
+
+def packagetest(dpkgtest):
+	code = 0
+	pout = subprocess.run(["dpkg","-s",dpkgtest], capture_output=True)
+	if pout.returncode != 0:
+		code = -1
+	else:
+		for ln in str(pout.stdout,"utf-8").split("\n"):
+			if re.match("Status: install ok installed",ln):
+				code = 1
+	return code
+
+def removepackage(packagename):
+    pout = subprocess.run(["apt-get","remove",packagename,"-y"], capture_output=True) 
+    if pout.returncode != 0:
+        raise Exception("Error removing {0}".format(str(pout.stderr,'utf-8')))
+
+
+
+def installpackage(d,packagename):
+    pout = subprocess.run(["apt-get","update","-y"], capture_output=True) 
+    if pout.returncode != 0:
+        raise Exception("Error updating {0}".format(str(pout.stderr,'utf-8')))
+   
+    pout = subprocess.run(["apt-get","install",packagename,"-y"], capture_output=True) 
+    if pout.returncode != 0:
+        raise Exception("Error updating {0}".format(str(pout.stderr,'utf-8')))
+
+
+def usersexists(user):
+    found = False
+    with open("/etc/passwd", 'r') as outfile:
+        allu = outfile.readlines()
+        for u in allu:
+            us = u.split(":")
+            if us[0] == user:
+                found = True
+
+    return found
+
