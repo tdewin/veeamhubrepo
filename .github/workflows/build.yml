@@ -33,8 +33,8 @@ jobs:
       run: find dist/ && find package/
       
     - name: Upload a deb
-      uses: actions/upload-artifact@v2.2.3
+      uses: actions/upload-artifact@v2
       with:
-        name: "veeamhubrepo_noarch_${{env.VEEAMHUBREPOVERSION}}"
-        path: "dist/*.deb"
+        name: "veeamhubrepo_noarch_${{env.VEEAMHUBREPOVERSION}}.deb"
+        path: "dist/veeamhubrepo_noarch_${{env.VEEAMHUBREPOVERSION}}.deb"
         retention-days: 7
