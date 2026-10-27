@@ -417,8 +417,9 @@ def harden(config,d):
         elif tag == "2":
             disablessh()
         elif tag == "3":
-            if not veeamhubutil.is_ssh_on():
-                veeamhubutil.ssh_start()
+            if not veeamhubutil.is_ssh_on() and not veeamhubutil.ssh_start():
+                d.msgbox("Could not start SSH, firewall left closed\nCheck: systemctl status ssh.socket ssh.service",width=60)
+                return
             if not veeamhubutil.ufw_is_inactive():
                 veeamhubutil.ufw_ssh(setstatus="allow")
             d.msgbox("SSH started but not on reboot\nDo not forget to Stop it again!!",width=60)
