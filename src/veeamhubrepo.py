@@ -1,7 +1,7 @@
 #! /usr/bin/env python3
 
 # Veeamhub Repo
-# VEEAMHUBREPOVERSION: 0.4.0
+# VEEAMHUBREPOVERSION: 0.4.1
 
 import locale
 from pathlib import Path

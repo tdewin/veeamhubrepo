@@ -30,7 +30,10 @@ jobs:
       run: 'find . -iname ".gitkeep"  -exec rm {} \;'
       
     - name: Build Packages
-      run: "dpkg-deb --build package/veeamhubrepo"
+      run: "dpkg-deb --root-owner-group --build package/veeamhubrepo"
+
+    - name: Check package ownership
+      run: "python3 src/test_package_ownership.py package/veeamhubrepo.deb"
 
     - name: Rename
       run: "mkdir dist && mv package/veeamhubrepo.deb dist/veeamhubrepo_noarch_${{env.VEEAMHUBREPOVERSION}}.deb"

@@ -11,6 +11,16 @@ sudo apt-get install ./veeamhubrepo.deb
 sudo veeamhubrepo
 ```
 
+**Ownership fix in v0.4.1:** Earlier `.deb` releases contained non-root-owned
+application files. A local account matching the packaged UID or GID could modify
+code subsequently run as root. Re-run the installation commands above to upgrade.
+v0.4.1 installs package contents as `root:root` and repairs ownership of the
+existing application directory during upgrades; backup repository ownership is
+left unchanged. v0.4.0 has been withdrawn, with its tag retained.
+
+An upgrade corrects ownership but cannot establish that a previously writable
+installation was never tampered with. Investigate suspected compromise separately.
+
 How it works:
 - Deploy Ubuntu 24.04 LTS on disk 1 (16GB is more then enough, you only need the base install)
 - Add a secondary repository disk/block device

@@ -1,0 +1,9 @@
+#!/bin/sh
+set -e
+
+case "$1" in
+    configure)
+        # dpkg preserves existing directory ownership during upgrades.
+        chown root:root /usr/share/veeamhubrepo
+        ;;
+esac
