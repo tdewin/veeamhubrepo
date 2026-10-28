@@ -8,6 +8,9 @@ import subprocess
 import re
 import json
 import humanize
+import os
+import time
+import sshcmd
 
 # creates a list of all ipv4 address
 def realnics():
@@ -57,14 +60,101 @@ def veeamreposshcheck(username):
     procs = [p for p in psutil.process_iter(['pid', 'name', 'username']) if username in p.username() and "ssh" in p.name()]
     return len(procs) > 0
 
-def getsshservice():
-    ssh = pystemd.systemd1.Unit(b'ssh.service')
-    ssh.load()
-    return ssh
+# Ubuntu 22.10+ (incl. 24.04) socket-activates SSH: the listening unit is
+# ssh.socket, and ssh.service only runs while a connection is open. So we drive
+# the socket (falling back to the service) and treat either being active as "on".
+_SSH_UNITS = (b'ssh.socket', b'ssh.service')
+
+def _ssh_unit(name):
+    u = pystemd.systemd1.Unit(name)
+    u.load()
+    return u
 
 def is_ssh_on():
-    s = getsshservice()
-    return s.Unit.ActiveState == b'active'
+    for name in _SSH_UNITS:
+        try:
+            if _ssh_unit(name).Unit.ActiveState == b'active':
+                return True
+        except Exception:
+            pass
+    return False
+
+# hardening disables both units, so remember the configured mode beforehand
+_SSH_MODE_FILE = "/var/lib/veeamhubrepo/sshunit"
+
+# Ubuntu disables socket activation by masking this generator; it is the only
+# trace of service mode when neither unit is enabled (e.g. started by hand)
+_SSH_GENERATOR = "/etc/systemd/system-generators/sshd-socket-generator"
+
+def _ssh_mode_inputs():
+    # (socket state, service state, generator masked) for sshcmd.start_units
+    states = []
+    for name in _SSH_UNITS:
+        try:
+            states.append(_ssh_unit(name).Unit.UnitFileState)
+        except Exception:
+            states.append(b'')
+    states.append(os.path.realpath(_SSH_GENERATOR) == "/dev/null")
+    return states
+
+def _ssh_recorded_unit():
+    try:
+        with open(_SSH_MODE_FILE, 'rb') as f:
+            return f.read().strip()
+    except OSError:
+        return None
+
+def ssh_start():
+    # start the unit matching the configured mode (socket vs service), so an
+    # explicit service setup (custom Port/ListenAddress) is not bypassed by the
+    # default socket on :22. returns True only if a unit is actually running.
+    for name in sshcmd.start_units(_ssh_recorded_unit(), *_ssh_mode_inputs()):
+        try:
+            u = _ssh_unit(name)
+            u.Unit.Start(b'replace')
+        except Exception:
+            continue
+        # Start only queues a job: a unit can be accepted and still fail
+        # (e.g. bad sshd_config), so wait until it settles before reporting.
+        # ponytail: fixed 5s poll; a socket is active instantly, sshd within ~1s
+        for _ in range(20):
+            state = u.Unit.ActiveState
+            if state == b'active':
+                return True
+            if state == b'failed':
+                break
+            time.sleep(0.25)
+    return False
+
+def ssh_stop():
+    for name in _SSH_UNITS:
+        try:
+            u = _ssh_unit(name)
+            if u.Unit.ActiveState == b'active':
+                u.Unit.Stop(b'replace')
+        except Exception:
+            pass
+
+def ssh_stop_and_disable():
+    # stop, then persistently disable every SSH unit file present so SSH does
+    # not come back on reboot (ssh.socket + ssh.service + sshd.service alias)
+    units = sshcmd.start_units(None, *_ssh_mode_inputs())
+    if len(units) == 1:
+        # ponytail: only record a known mode; a second harden run keeps the first record
+        os.makedirs(os.path.dirname(_SSH_MODE_FILE), exist_ok=True)
+        with open(_SSH_MODE_FILE, 'wb') as f:
+            f.write(units[0])
+    ssh_stop()
+    mgr = pystemd.systemd1.Manager()
+    mgr.load()
+    wanted = ("ssh.socket", "ssh.service", "sshd.service")
+    for serv in mgr.Manager.ListUnitFiles():
+        base = serv[0].split(b'/')[-1]
+        if any(w == str(base, 'utf-8') for w in wanted):
+            try:
+                mgr.Manager.DisableUnitFiles([base], False)
+            except Exception:
+                pass
 
 def ufw_is_inactive():
 	ufw = subprocess.run(["ufw", "status"], capture_output=True)

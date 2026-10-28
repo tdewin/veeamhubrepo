@@ -1,7 +1,7 @@
 #! /usr/bin/env python3
 
 # Veeamhub Repo
-# VEEAMHUBREPOVERSION: 0.3.4
+# VEEAMHUBREPOVERSION: 0.4.0
 
 import locale
 from pathlib import Path
@@ -26,6 +26,7 @@ import ipaddress
 #
 import dialogwrappers
 import veeamhubutil
+import diskcmd
 
 # Start menu in home() function at the bottom
 
@@ -112,23 +113,23 @@ def formatdrive(config,d):
             code = d.yesno(f"Are you sure you want to format {part}?")
             if code == d.OK:
                 #trying to suggest to make a primary partition on a complete disk
-                if re.match("/dev/.d[a-z]{1,2}$", part):
+                if diskcmd.is_whole_disk(part):
                     code = d.yesno(f"{part} contains no partitions. Do you want to partition it?")
                     if code == d.OK:
                         if shutil.which("parted") is not None:
-                            try:
-                                pout = subprocess.run([
-                                    "parted","-s",part,
-                                    "mklabel","gpt",
-                                    "mkpart", "primary", "0%", "100%"
-                                    ], capture_output=True)
-                                part = f"{part}1"
-                            except subprocess.CalledProcessError as e:
+                            pout = subprocess.run([
+                                "parted","-s",part,
+                                "mklabel","gpt",
+                                "mkpart", "primary", "0%", "100%"
+                                ], capture_output=True)
+                            if pout.returncode != 0:
                                 d.msgbox(
-                                    f"Error partitioning {part}, code {e.returncode}:"
-                                    f"{e.stderr}".encode("utf-8")
+                                    f"Error partitioning {part}:\n{str(pout.stderr,'utf-8')}",
+                                    width=80
                                 )
                                 return 1, repoadded
+                            # partition node differs per device type (sda1 vs nvme0n1p1)
+                            part = diskcmd.partition_node(part)
                         else:
                             d.msgbox("Parted not found, stopping")
                             return 1,repoadded
@@ -136,11 +137,11 @@ def formatdrive(config,d):
                 d.infobox(f"Now formating {part} with XFS")
                 #sometimes disk is not yet synced if too fast
                 time.sleep(2)
-                pout = subprocess.run(["mkfs.xfs","-b","size=4096","-m","reflink=1,crc=1",part], capture_output=True)
+                pout = subprocess.run(diskcmd.mkfsxfs_cmd(part), capture_output=True)
                 if pout.returncode != 0:
                     force = d.yesno("mkfs.xfs failed, do you want me to try to force it?\n{0}".format(str(pout.stderr,'utf-8')),width=80)
                     if force == d.OK:
-                        pout = subprocess.run(["mkfs.xfs","-f","-b","size=4096","-m","reflink=1,crc=1",part], capture_output=True)
+                        pout = subprocess.run(diskcmd.mkfsxfs_cmd(part, force=True), capture_output=True)
 
 
                 if pout.returncode != 0:
@@ -214,17 +215,15 @@ def registerserver(config,d,wizardstart=False):
                 forceregister = True
 
         # uses dbus to talk to the service, should be more stable then parsing systemctl output
-        # enable ssh when registration starts
-        ssh = veeamhubutil.getsshservice()
-        sshstarted = False 
+        # enable ssh when registration starts (socket-activated on Ubuntu 22.10+)
+        sshstarted = False
         sshstop = False
-        if ssh.Unit.ActiveState != b'active':
+        if not veeamhubutil.is_ssh_on():
             code = d.OK
             if not wizardstart:
                 code = d.yesno("SSH is not started, shall I temporarily start it?")
-                
-            if code == d.OK:
-                ssh.Unit.Start(b'replace')
+
+            if code == d.OK and veeamhubutil.ssh_start():
                 sshstarted = True
                 sshstop = True
         else:
@@ -271,7 +270,7 @@ def registerserver(config,d,wizardstart=False):
                 #delete sudo file and close ssh after the user 
                 Path(sudofp).unlink()
                 if sshstop:
-                    ssh.Unit.Stop(b'replace')
+                    veeamhubutil.ssh_stop()
                 
                 if not veeamhubutil.ufw_is_inactive():
                     veeamhubutil.ufw_ssh(setstatus="deny")
@@ -399,14 +398,7 @@ def update(config,d):
 
 # 6.2 harden
 def disablessh():
-    ssh = veeamhubutil.getsshservice()
-    if ssh.Unit.ActiveState == b'active':
-        ssh.Unit.Stop(b'replace')
-		
-    mgr = pystemd.systemd1.Manager()
-    mgr.load()
-    if len([serv for serv in mgr.Manager.ListUnitFiles() if "sshd" in str(serv[0]) ]) > 0:
-        mgr.Manager.DisableUnitFiles([b'sshd.service'],False)
+    veeamhubutil.ssh_stop_and_disable()
     if not veeamhubutil.ufw_is_inactive():
         veeamhubutil.ufw_ssh(setstatus="deny")
 
@@ -425,9 +417,9 @@ def harden(config,d):
         elif tag == "2":
             disablessh()
         elif tag == "3":
-            ssh = veeamhubutil.getsshservice()
-            if ssh.Unit.ActiveState != b'active':
-                ssh.Unit.Start(b'replace')
+            if not veeamhubutil.is_ssh_on() and not veeamhubutil.ssh_start():
+                d.msgbox("Could not start SSH, firewall left closed\nCheck: systemctl status ssh.socket ssh.service",width=60)
+                return
             if not veeamhubutil.ufw_is_inactive():
                 veeamhubutil.ufw_ssh(setstatus="allow")
             d.msgbox("SSH started but not on reboot\nDo not forget to Stop it again!!",width=60)

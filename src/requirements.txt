@@ -1,5 +1,5 @@
-netifaces==0.10.9
-psutil==5.8.0
-pythondialog==3.5.1
-PyYAML==5.3.1
-humanize==1.0.0
+netifaces-plus>=0.12.5
+psutil>=5.9
+pythondialog>=3.5.3
+PyYAML>=6.0
+humanize>=4.0

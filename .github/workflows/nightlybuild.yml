@@ -10,13 +10,13 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v5
 
     - name: Get version
       run: "echo \"VEEAMHUBREPOVERSION=$(cat src/veeamhubrepo.py | grep -e  '# VEEAMHUBREPOVERSION:' | sed 's/# VEEAMHUBREPOVERSION: //;s/\\s*//g')\" >> $GITHUB_ENV"
       
     - name: Copy file
-      run: "cp src/*  package/veeamhubrepo/usr/share/veeamhubrepo"
+      run: "cp src/*  package/veeamhubrepo/usr/share/veeamhubrepo && rm -f package/veeamhubrepo/usr/share/veeamhubrepo/test_*.py"
       
     - name: Mark version
       run: 'echo "${{env.VEEAMHUBREPOVERSION}} nightly $(date +%Y-%d-%m)" > package/veeamhubrepo/usr/share/veeamhubrepo/release.txt'
@@ -35,7 +35,7 @@ jobs:
       run: find dist/ && find package/
       
     - name: Upload a deb
-      uses: actions/upload-artifact@v2.2.3
+      uses: actions/upload-artifact@v7
       with:
         name: "veeamhubrepo_noarch_${{env.VEEAMHUBREPOVERSION}}_nightly"
         path: "dist/*.deb"
