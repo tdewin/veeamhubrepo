@@ -17,6 +17,12 @@ def test_recorded_mode_survives_hardening():
     assert start_units(SERVICE, b'disabled', b'disabled') == [SERVICE]
     assert start_units(SOCKET, b'disabled', b'disabled') == [SOCKET]
 
+def test_explicit_config_beats_stale_record():
+    # socket recorded at hardening, admin later switched to service mode
+    assert start_units(SOCKET, b'disabled', b'enabled', True) == [SERVICE]
+    assert start_units(SOCKET, b'disabled', b'disabled', True) == [SERVICE]
+    assert start_units(SERVICE, b'enabled', b'disabled') == [SOCKET]
+
 def test_unknown_falls_back():
     assert start_units(None, b'disabled', b'disabled') == [SOCKET, SERVICE]
     assert start_units(None, b'', b'disabled') == [SOCKET, SERVICE]
