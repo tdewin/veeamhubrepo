@@ -49,4 +49,8 @@ jobs:
       if: startsWith(github.ref, 'refs/tags/')
       env:
         GH_TOKEN: ${{ github.token }}
-      run: gh release create "${{ github.ref_name }}" "dist/veeamhubrepo_noarch_${{env.VEEAMHUBREPOVERSION}}.deb" --title "${{ github.ref_name }}" --generate-notes
+      # also attach a stable unversioned name (as in v0.3.x releases) so the
+      # README's releases/latest/download/veeamhubrepo_noarch.deb link keeps working
+      run: |
+        cp "dist/veeamhubrepo_noarch_${{env.VEEAMHUBREPOVERSION}}.deb" dist/veeamhubrepo_noarch.deb
+        gh release create "${{ github.ref_name }}" "dist/veeamhubrepo_noarch_${{env.VEEAMHUBREPOVERSION}}.deb" dist/veeamhubrepo_noarch.deb --title "${{ github.ref_name }}" --generate-notes
